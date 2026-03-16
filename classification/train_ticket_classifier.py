@@ -1,7 +1,5 @@
-
 import argparse
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -9,7 +7,6 @@ import pandas as pd
 import torch
 from datasets import Dataset
 from sklearn.metrics import accuracy_score, classification_report, f1_score
-from sklearn.model_selection import train_test_split
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -19,7 +16,6 @@ from transformers import (
     TrainingArguments,
     set_seed,
 )
-
 
 TEXT_COLUMNS_DEFAULT = ["Titel", "Beschreibung"]
 
@@ -55,42 +51,57 @@ def prepare_dataframe(df: pd.DataFrame, label_col: str, text_cols: list[str]) ->
 
     work = work[(work["text"] != "") & (work[label_col] != "")].copy()
     work = work.rename(columns={label_col: "label_text"})[["text", "label_text"]]
-
-    # Exakte Dubletten entfernen, damit identische Tickets nicht über Train/Val/Test verteilt werden.
     work = work.drop_duplicates(subset=["text", "label_text"]).reset_index(drop=True)
-
-    counts = work["label_text"].value_counts()
-    too_small = counts[counts < 3]
-    if not too_small.empty:
-        raise ValueError(
-            "Zu kleine Klassen gefunden. Mindestens 3 Beispiele pro Klasse nötig.\n"
-            + too_small.to_string()
-        )
-
     return work
 
 
-def make_splits(df: pd.DataFrame, seed: int):
-    train_df, temp_df = train_test_split(
-        df,
-        test_size=0.30,
-        random_state=seed,
-        stratify=df["label_text"],
-    )
-
-    val_df, test_df = train_test_split(
-        temp_df,
-        test_size=0.50,
-        random_state=seed,
-        stratify=temp_df["label_text"],
-    )
-    return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
+def ensure_min_class_counts(df: pd.DataFrame, split_name: str, minimum: int = 1) -> None:
+    counts = df["label_text"].value_counts()
+    too_small = counts[counts < minimum]
+    if not too_small.empty:
+        raise ValueError(
+            f"Im Split '{split_name}' sind Klassen mit weniger als {minimum} Beispiel(en) enthalten:\n"
+            + too_small.to_string()
+        )
 
 
-def encode_labels(df: pd.DataFrame, label2id: dict[str, int]) -> pd.DataFrame:
+def add_label_ids(df: pd.DataFrame, label2id: dict[str, int]) -> pd.DataFrame:
     out = df.copy()
     out["label"] = out["label_text"].map(label2id)
+    if out["label"].isna().any():
+        missing = out.loc[out["label"].isna(), "label_text"].unique().tolist()
+        raise ValueError(
+            "Mindestens ein Label in Val/Test kommt im Trainingssplit nicht vor: "
+            f"{missing}"
+        )
+    out["label"] = out["label"].astype(int)
     return out
+
+
+def drop_cross_split_overlaps(train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame):
+    train_keys = set(zip(train_df["text"], train_df["label_text"]))
+    val_keys_before = set(zip(val_df["text"], val_df["label_text"]))
+    test_keys_before = set(zip(test_df["text"], test_df["label_text"]))
+
+    val_before = len(val_df)
+    test_before = len(test_df)
+
+    val_df = val_df[~val_df.apply(lambda r: (r["text"], r["label_text"]) in train_keys, axis=1)].reset_index(drop=True)
+
+    updated_val_keys = set(zip(val_df["text"], val_df["label_text"]))
+    forbidden_test = train_keys | updated_val_keys
+    test_df = test_df[~test_df.apply(lambda r: (r["text"], r["label_text"]) in forbidden_test, axis=1)].reset_index(drop=True)
+    updated_test_keys = set(zip(test_df["text"], test_df["label_text"]))
+
+    overlap_info = {
+        "val_removed_due_to_train_overlap": val_before - len(val_df),
+        "test_removed_due_to_train_or_val_overlap": test_before - len(test_df),
+        "train_val_exact_overlap_before_cleanup": len(train_keys & val_keys_before),
+        "train_test_exact_overlap_before_cleanup": len(train_keys & test_keys_before),
+        "val_test_exact_overlap_before_cleanup": len(val_keys_before & test_keys_before),
+        "val_test_exact_overlap_after_cleanup": len(updated_val_keys & updated_test_keys),
+    }
+    return train_df, val_df, test_df, overlap_info
 
 
 class WeightedTrainer(Trainer):
@@ -118,21 +129,24 @@ def compute_class_weights(y: pd.Series, label2id: dict[str, int]) -> torch.Tenso
     total = len(y)
     num_classes = len(label2id)
     weights = []
-
     for label, idx in sorted(label2id.items(), key=lambda x: x[1]):
         c = counts[label]
-        # balanced weight
         weights.append(total / (num_classes * c))
-
     return torch.tensor(weights, dtype=torch.float)
+
+
+def to_dataset(df: pd.DataFrame) -> Dataset:
+    return Dataset.from_pandas(df[["text", "label_text", "label"]], preserve_index=False)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data", required=True, help="Pfad zu CSV/XLSX mit historischen Tickets")
+    parser.add_argument("--train-data", required=True, help="Pfad zur Trainingsdatei")
+    parser.add_argument("--val-data", required=True, help="Pfad zur Validierungsdatei")
+    parser.add_argument("--test-data", required=True, help="Pfad zur Testdatei")
     parser.add_argument("--label-col", required=True, help="Zielspalte, z. B. Typ, Bereich, Prio oder Schweregrad")
     parser.add_argument("--text-cols", nargs="+", default=TEXT_COLUMNS_DEFAULT, help="Textspalten, standardmäßig Titel Beschreibung")
-    parser.add_argument("--model", default="deepset/gbert-base", help="z. B. deepset/gbert-base oder distilbert/distilbert-base-german-cased")
+    parser.add_argument("--model", default="deepset/gbert-base")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--sheet-name", default="Tabelle")
     parser.add_argument("--max-length", type=int, default=192)
@@ -148,37 +162,43 @@ def main():
 
     set_seed(args.seed)
 
-    data_path = Path(args.data)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    raw_df = read_table(data_path, sheet_name=args.sheet_name)
-    raw_rows = len(raw_df)
-    df = prepare_dataframe(raw_df, label_col=args.label_col, text_cols=args.text_cols)
-    prepared_rows = len(df)
+    raw_train_df = read_table(Path(args.train_data), sheet_name=args.sheet_name)
+    raw_val_df = read_table(Path(args.val_data), sheet_name=args.sheet_name)
+    raw_test_df = read_table(Path(args.test_data), sheet_name=args.sheet_name)
 
-    train_df, val_df, test_df = make_splits(df, seed=args.seed)
+    train_df = prepare_dataframe(raw_train_df, label_col=args.label_col, text_cols=args.text_cols)
+    val_df = prepare_dataframe(raw_val_df, label_col=args.label_col, text_cols=args.text_cols)
+    test_df = prepare_dataframe(raw_test_df, label_col=args.label_col, text_cols=args.text_cols)
 
-    labels = sorted(df["label_text"].unique().tolist())
+    train_df, val_df, test_df, overlap_info = drop_cross_split_overlaps(train_df, val_df, test_df)
+
+    ensure_min_class_counts(train_df, "train", minimum=2)
+    ensure_min_class_counts(val_df, "val", minimum=1)
+    ensure_min_class_counts(test_df, "test", minimum=1)
+
+    labels = sorted(train_df["label_text"].unique().tolist())
     label2id = {label: i for i, label in enumerate(labels)}
     id2label = {i: label for label, i in label2id.items()}
 
-    train_df = encode_labels(train_df, label2id)
-    val_df = encode_labels(val_df, label2id)
-    test_df = encode_labels(test_df, label2id)
+    # Sicherstellen, dass Val/Test keine unbekannten Labels enthalten
+    _ = add_label_ids(val_df, label2id)
+    _ = add_label_ids(test_df, label2id)
 
-    train_ds = Dataset.from_pandas(train_df[["text", "label_text", "label"]], preserve_index=False)
-    val_ds = Dataset.from_pandas(val_df[["text", "label_text", "label"]], preserve_index=False)
-    test_ds = Dataset.from_pandas(test_df[["text", "label_text", "label"]], preserve_index=False)
+    train_df = add_label_ids(train_df, label2id)
+    val_df = add_label_ids(val_df, label2id)
+    test_df = add_label_ids(test_df, label2id)
+
+    train_ds = to_dataset(train_df)
+    val_ds = to_dataset(val_df)
+    test_ds = to_dataset(test_df)
 
     tokenizer = AutoTokenizer.from_pretrained(args.model)
 
     def tokenize(batch):
-        return tokenizer(
-            batch["text"],
-            truncation=True,
-            max_length=args.max_length,
-        )
+        return tokenizer(batch["text"], truncation=True, max_length=args.max_length)
 
     tokenized_train = train_ds.map(tokenize, batched=True, remove_columns=["text", "label_text"])
     tokenized_val = val_ds.map(tokenize, batched=True, remove_columns=["text", "label_text"])
@@ -239,7 +259,6 @@ def main():
     )
 
     trainer.train()
-
     trainer.save_model(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
 
@@ -269,11 +288,17 @@ def main():
             {
                 "label2id": label2id,
                 "id2label": {str(k): v for k, v in id2label.items()},
-                "raw_rows": raw_rows,
-                "prepared_rows_after_cleaning_and_dedup": prepared_rows,
-                "train_size": len(train_df),
-                "val_size": len(val_df),
-                "test_size": len(test_df),
+                "raw_rows": {
+                    "train": len(raw_train_df),
+                    "val": len(raw_val_df),
+                    "test": len(raw_test_df),
+                },
+                "prepared_rows_after_cleaning_and_dedup": {
+                    "train": len(train_df),
+                    "val": len(val_df),
+                    "test": len(test_df),
+                },
+                "overlap_cleanup": overlap_info,
                 "use_class_weights": bool(args.use_class_weights),
                 "base_model": args.model,
                 "max_length": args.max_length,

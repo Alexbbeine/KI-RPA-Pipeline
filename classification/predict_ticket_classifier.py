@@ -1,4 +1,3 @@
-
 import argparse
 import json
 from pathlib import Path
@@ -7,12 +6,13 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 
-def predict(model_dir: str, text: str):
-    tokenizer = AutoTokenizer.from_pretrained(model_dir)
-    model = AutoModelForSequenceClassification.from_pretrained(model_dir)
+def predict(model_dir: str, text: str, max_length: int = 192):
+    model_path = Path(model_dir)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model = AutoModelForSequenceClassification.from_pretrained(model_path)
     model.eval()
 
-    inputs = tokenizer(text, truncation=True, max_length=192, return_tensors="pt")
+    inputs = tokenizer(text, truncation=True, max_length=max_length, return_tensors="pt")
     with torch.no_grad():
         outputs = model(**inputs)
         probs = torch.softmax(outputs.logits, dim=1)[0]
@@ -35,9 +35,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-dir", required=True)
     parser.add_argument("--text", required=True)
+    parser.add_argument("--max-length", type=int, default=192)
     args = parser.parse_args()
 
-    result = predict(args.model_dir, args.text)
+    result = predict(args.model_dir, args.text, max_length=args.max_length)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

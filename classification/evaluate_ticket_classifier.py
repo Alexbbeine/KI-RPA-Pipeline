@@ -13,29 +13,25 @@ from transformers import (
     TrainingArguments,
 )
 
-from train_ticket_classifier import read_table, prepare_dataframe, make_splits
-
+from train_ticket_classifier import read_table, prepare_dataframe, add_label_ids
 
 TEXT_COLUMNS_DEFAULT = ["Titel", "Beschreibung"]
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data", required=True)
+    parser.add_argument("--test-data", required=True)
     parser.add_argument("--label-col", required=True)
     parser.add_argument("--model-dir", required=True)
     parser.add_argument("--sheet-name", default="Tabelle")
     parser.add_argument("--text-cols", nargs="+", default=TEXT_COLUMNS_DEFAULT)
-    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-length", type=int, default=192)
     parser.add_argument("--eval-batch-size", type=int, default=8)
     args = parser.parse_args()
 
     model_dir = Path(args.model_dir)
-
-    raw_df = read_table(Path(args.data), sheet_name=args.sheet_name)
-    df = prepare_dataframe(raw_df, label_col=args.label_col, text_cols=args.text_cols)
-    _, _, test_df = make_splits(df, seed=args.seed)
+    raw_test_df = read_table(Path(args.test_data), sheet_name=args.sheet_name)
+    test_df = prepare_dataframe(raw_test_df, label_col=args.label_col, text_cols=args.text_cols)
 
     tokenizer = AutoTokenizer.from_pretrained(model_dir)
     model = AutoModelForSequenceClassification.from_pretrained(model_dir)
@@ -43,30 +39,14 @@ def main():
     label2id = {str(k): int(v) for k, v in model.config.label2id.items()}
     id2label = {int(k): str(v) for k, v in model.config.id2label.items()}
 
-    test_df = test_df.copy()
-    test_df["label"] = test_df["label_text"].map(label2id)
+    test_df = add_label_ids(test_df, label2id)
 
-    if test_df["label"].isna().any():
-        missing = test_df.loc[test_df["label"].isna(), "label_text"].unique().tolist()
-        raise ValueError(f"Labels im Testset fehlen im Modellmapping: {missing}")
-
-    test_ds = Dataset.from_pandas(
-        test_df[["text", "label_text", "label"]],
-        preserve_index=False
-    )
+    test_ds = Dataset.from_pandas(test_df[["text", "label_text", "label"]], preserve_index=False)
 
     def tokenize(batch):
-        return tokenizer(
-            batch["text"],
-            truncation=True,
-            max_length=args.max_length,
-        )
+        return tokenizer(batch["text"], truncation=True, max_length=args.max_length)
 
-    tokenized_test = test_ds.map(
-        tokenize,
-        batched=True,
-        remove_columns=["text", "label_text"]
-    )
+    tokenized_test = test_ds.map(tokenize, batched=True, remove_columns=["text", "label_text"])
 
     trainer = Trainer(
         model=model,
@@ -105,7 +85,6 @@ def main():
         json.dumps(metrics, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-
     (model_dir / "classification_report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2),
         encoding="utf-8",

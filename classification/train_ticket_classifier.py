@@ -10,6 +10,7 @@ from sklearn.metrics import accuracy_score, classification_report, f1_score
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
+    BertTokenizer,
     DataCollatorWithPadding,
     EarlyStoppingCallback,
     Trainer,
@@ -207,7 +208,10 @@ def main():
     val_ds = to_dataset(val_df)
     test_ds = to_dataset(test_df)
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    if "gbert" in args.model.lower() or "dbmdz" in args.model.lower():
+        tokenizer = BertTokenizer.from_pretrained(args.model)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(args.model)
 
     # Tokenisierung des Eingabetexts für das Transformer-Modell.
     def tokenize(batch):

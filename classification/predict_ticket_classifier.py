@@ -3,13 +3,19 @@ import json
 from pathlib import Path
 
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, BertTokenizer
 
 
 # Lädt ein trainiertes Modell und gibt für einen Text die vorhergesagte Klasse sowie die zugehörogen Wahrscheinlichkeiten zurück.
 def predict(model_dir: str, text: str, max_length: int = 192):
     model_path = Path(model_dir)
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model_dir_str = str(model_path).lower()
+
+    if "gbert" in model_dir_str or "bert-base-german" in model_dir_str:
+        tokenizer = BertTokenizer.from_pretrained(model_path)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        
     model = AutoModelForSequenceClassification.from_pretrained(model_path)
     model.eval()
 

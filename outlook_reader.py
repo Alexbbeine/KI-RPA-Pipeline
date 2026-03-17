@@ -17,8 +17,7 @@ def to_utc_iso(dt) -> str:
 
 def get_sender_smtp(item) -> str:
     """
-    Liefert möglichst die echte SMTP-Adresse.
-    Bei internen Exchange-Absendern kommt sonst oft nur eine Exchange-DN zurück.
+    Liefert die echte SMTP-Adresse.
     """
     try:
         sender_type = str(getattr(item, "SenderEmailType", "") or "").upper()

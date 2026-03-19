@@ -15,6 +15,7 @@ from transformers import (
 
 from train_ticket_classifier import read_table, prepare_dataframe, add_label_ids
 
+# Standardmäßig werden dieselben Spalten benutzt, wie im Training.
 TEXT_COLUMNS_DEFAULT = ["Titel", "Beschreibung"]
 
 # Hauptfunktion zur Auswertung eines bereits trainierten Modells auf einem separaten Testdatensatz.
@@ -30,18 +31,22 @@ def main():
     args = parser.parse_args()
 
     model_dir = Path(args.model_dir)
+
+    # Den Testdatensatz laden und in dieselbe Struktur überführen wie beim Training.
     raw_test_df = read_table(Path(args.test_data), sheet_name=args.sheet_name)
     test_df = prepare_dataframe(raw_test_df, label_col=args.label_col, text_cols=args.text_cols)
 
     tokenizer = AutoTokenizer.from_pretrained(model_dir)
     model = AutoModelForSequenceClassification.from_pretrained(model_dir)
 
+    # Das im Modell hinterlegte Label Mapping überhehmen, damit die Testlabels exakt zum trainierten Modell passen.
     label2id = {str(k): int(v) for k, v in model.config.label2id.items()}
     id2label = {int(k): str(v) for k, v in model.config.id2label.items()}
 
     # Prüft, ob alle Labels im Testdatensatz auch im trainierten Modell bekannt sind.
     test_df = add_label_ids(test_df, label2id)
 
+    # Testdaten in das Dataset Format der Transformers Bibliothek überführen.
     test_ds = Dataset.from_pandas(test_df[["text", "label_text", "label"]], preserve_index=False)
 
     # Tokenisiert den Testtext im gleichen Format wie beim Training.
@@ -50,7 +55,7 @@ def main():
 
     tokenized_test = test_ds.map(tokenize, batched=True, remove_columns=["text", "label_text"])
 
-    # Erstellt einen Trainer nur für die Evaluation und Vorhersage auf dem Testdatensatz.
+    # Erstellt einen Trainer nur für die Evaluation und Vorhersage auf dem Testdatensatz. (Hier findet kein weiteres Training statt)
     trainer = Trainer(
         model=model,
         args=TrainingArguments(
@@ -77,6 +82,7 @@ def main():
         "test_weighted_f1": f1_score(y_true, y_pred, average="weighted"),
     }
 
+    # Detaillierten Bericht pro Klasse erstellen.
     report = classification_report(
         y_true,
         y_pred,

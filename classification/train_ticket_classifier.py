@@ -23,8 +23,8 @@ from transformers import (
 # Standardmäßig werden Titel und Beschreibung zu einem gemeinsamen Eingabetext zusammengeführt.
 TEXT_COLUMNS_DEFAULT = ["Titel", "Beschreibung"]
 
-
-# Standardmäßig werden Titel und Beschreibung zu einem gemeinsamen Eingabetext zusammengeführt.
+# Liest Trainings, Validierungs oder Testdaten aus der CSV oder Excel ein.
+# Dadurch kann dasselbe Trainingsskript flexibel mit beiden Dateiformaten arbeiten.
 def read_table(path: Path, sheet_name: str = "Tabelle") -> pd.DataFrame:
     suffix = path.suffix.lower()
     if suffix == ".csv":
@@ -73,7 +73,7 @@ def ensure_min_class_counts(df: pd.DataFrame, split_name: str, minimum: int = 1)
         )
 
 
-# Wandelt Textlabels in numerische Label-IDs um und prüft, ob unbekannte Labels vorkommen.
+# Wandelt Textlabels in numerische Label-IDs (weil Transformermodelle nur mit Zahlenwerten arbeiten) um und prüft, ob unbekannte Labels vorkommen.
 def add_label_ids(df: pd.DataFrame, label2id: dict[str, int]) -> pd.DataFrame:
     out = df.copy()
     out["label"] = out["label_text"].map(label2id)
@@ -87,7 +87,7 @@ def add_label_ids(df: pd.DataFrame, label2id: dict[str, int]) -> pd.DataFrame:
     return out
 
 
-# Entfernt exakte Dubletten zwischen Train-, Validierungs- und Testsplit, um Dopplungen zu vermeiden.
+# Entfernt exakte Dubletten zwischen Train-, Validierungs- und Testsplit, um Dopplungen zu vermeiden, sodass nicht dieselben Daten, die trainiert wurden getestet werden.
 def drop_cross_split_overlaps(train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame):
     train_keys = set(zip(train_df["text"], train_df["label_text"]))
     val_keys_before = set(zip(val_df["text"], val_df["label_text"]))
@@ -114,13 +114,14 @@ def drop_cross_split_overlaps(train_df: pd.DataFrame, val_df: pd.DataFrame, test
     return train_df, val_df, test_df, overlap_info
 
 
-
-# Eigener Trainer, der optional Klassengewichte für unausgeglichene Klassenverteilungen berücksichtigt.
+# Eigene Trainer Klasse, die optional Klassengewichte berücksichtigt.
+# Das ist hilfreich, wenn einzelne Ticketklassen deutlich seltener vorkommen als andere.
 class WeightedTrainer(Trainer):
     def __init__(self, class_weights: torch.Tensor | None = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.class_weights = class_weights
 
+    # Überschreibt die Verlustberechnung, um bei Bedarf gewichtete Fehlerkosten zu nutzen.
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         labels = inputs.get("labels")
         outputs = model(**inputs)
@@ -137,6 +138,7 @@ class WeightedTrainer(Trainer):
 
 
 # Berechnet Klassengewichte auf Basis der Häufigkeit der Labels im Trainingssplit.
+# Seltene Klassen erhalten dadurch ein höheres Gewicht im Loss.
 def compute_class_weights(y: pd.Series, label2id: dict[str, int]) -> torch.Tensor:
     counts = y.value_counts().to_dict()
     total = len(y)
@@ -148,12 +150,13 @@ def compute_class_weights(y: pd.Series, label2id: dict[str, int]) -> torch.Tenso
     return torch.tensor(weights, dtype=torch.float)
 
 
-# Berechnet Klassengewichte auf Basis der Häufigkeit der Labels im Trainingssplit.
+# Wandelt einen Pandas DataFrame in ein Hugging Face Dataset um, damit die Daten direkt in die Trainingspipeline des Transformers übergeben werden können.
 def to_dataset(df: pd.DataFrame) -> Dataset:
     return Dataset.from_pandas(df[["text", "label_text", "label"]], preserve_index=False)
 
 
-# Hauptfunktion: lädt Daten, bereitet sie auf, trainiert das Modell und speichert die Ergebnisse.
+
+# Führt den vollständigen Trainingsablauf für einen Ticketklassifikator aus: Lädt Daten, bereitet sie auf, trainiert das Modell und speichert die Ergebnisse.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--train-data", required=True, help="Pfad zur Trainingsdatei")
@@ -180,42 +183,50 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Rohdaten für Training, Validierung und Test einlesen.
     raw_train_df = read_table(Path(args.train_data), sheet_name=args.sheet_name)
     raw_val_df = read_table(Path(args.val_data), sheet_name=args.sheet_name)
     raw_test_df = read_table(Path(args.test_data), sheet_name=args.sheet_name)
 
+    # Alle drei Splits in die gemeinsame Trainingsstruktur überführen.
     train_df = prepare_dataframe(raw_train_df, label_col=args.label_col, text_cols=args.text_cols)
     val_df = prepare_dataframe(raw_val_df, label_col=args.label_col, text_cols=args.text_cols)
     test_df = prepare_dataframe(raw_test_df, label_col=args.label_col, text_cols=args.text_cols)
 
+    # Exakte Überschneidungen zwischen den Splits entfernen.
     train_df, val_df, test_df, overlap_info = drop_cross_split_overlaps(train_df, val_df, test_df)
 
+    # Mindestanzahl pro Klasse sicherstellen.
     ensure_min_class_counts(train_df, "train", minimum=2)
     ensure_min_class_counts(val_df, "val", minimum=1)
-    ensure_min_class_counts(test_df, "test", minimum=1)
+    ensure_min_class_counts(test_df, "test", minimum=2)
 
+    # Alle im Trainingssplit vorhandenen Klassen in numerische IDs übersetzen.
     labels = sorted(train_df["label_text"].unique().tolist())
     label2id = {label: i for i, label in enumerate(labels)}
     id2label = {i: label for label, i in label2id.items()}
 
-    # Sicherstellen, dass Val/Test keine unbekannten Labels enthalten
+    # Sicherstellen, dass Val/Test keine unbekannten Labels enthalten.
     _ = add_label_ids(val_df, label2id)
     _ = add_label_ids(test_df, label2id)
 
+    # Die Label-IDs in allen Splits ergänzen.
     train_df = add_label_ids(train_df, label2id)
     val_df = add_label_ids(val_df, label2id)
     test_df = add_label_ids(test_df, label2id)
 
+    # Daten in das Dataset Format für die Transformers Bibliothek überführen.
     train_ds = to_dataset(train_df)
     val_ds = to_dataset(val_df)
     test_ds = to_dataset(test_df)
 
+    # Für einige BERT Modelle wird explizit der BertTokenizer genutzt. Für andere Basismodelle genügt der automatische Tokenizer.
     if "gbert" in args.model.lower() or "dbmdz" in args.model.lower():
         tokenizer = BertTokenizer.from_pretrained(args.model)
     else:
         tokenizer = AutoTokenizer.from_pretrained(args.model)
 
-    # Tokenisierung des Eingabetexts für das Transformer-Modell.
+    # Tokenisierung des Eingabetexts (wandelt Rohtext in Token IDs um) für das Transformer-Modell.
     def tokenize(batch):
         return tokenizer(batch["text"], truncation=True, max_length=args.max_length)
 
@@ -225,6 +236,7 @@ def main():
 
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
+    # Das eigentliche Klassifikationsmodell mit passender Anzahl an Zielklassen initialisieren.
     if "gbert" in args.model.lower() or "bert-base-german" in args.model.lower():
         config = BertConfig.from_pretrained(
             args.model,
@@ -244,6 +256,7 @@ def main():
             label2id=label2id,
         )
 
+    # Optional Klassengewichte berechnen, falls unausgeglichene Klassenverteilungen im Datensatz abgefedert werden sollen.
     class_weights = None
     if args.use_class_weights:
         class_weights = compute_class_weights(train_df["label_text"], label2id)
@@ -258,6 +271,7 @@ def main():
             "weighted_f1": f1_score(labels_np, preds, average="weighted"),
         }
 
+    # Trainingskonfiguration für Hugging Face Trainer. Das beste Modell wird anhand der Macro F1 auf dem Validierungsskript ausgewählt.
     training_args = TrainingArguments(
         output_dir=str(output_dir),
         learning_rate=args.lr,
@@ -278,6 +292,7 @@ def main():
         use_cpu=True,
     )
 
+    # Trainer mit optional gewichteter Vesrlustfunktion und Early Stopping erstellen.
     trainer = WeightedTrainer(
         class_weights=class_weights,
         model=model,
@@ -290,15 +305,18 @@ def main():
         callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
     )
 
+    # Modell trainieren und danach Modellgewichte sowie Tokenizer im Ausgabeordner speichern.
     trainer.train()
     trainer.save_model(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
 
+    # Das beste gespeicherte Modell abschließend auf dem testsplit auswerten.
     test_metrics = trainer.evaluate(tokenized_test, metric_key_prefix="test")
     pred_output = trainer.predict(tokenized_test)
     y_true = pred_output.label_ids
     y_pred = np.argmax(pred_output.predictions, axis=1)
 
+    # Detaillierten Klassifkationsbericht pro Klasse erstellen.
     report = classification_report(
         y_true,
         y_pred,
@@ -307,6 +325,8 @@ def main():
         zero_division=0,
     )
 
+
+    # Testmetriken, Klassifikationsbericht und Label Mapping speichern, damit der Trainingslauf später vollstädnig nachvollzogen werden kann.
     (output_dir / "metrics_test.json").write_text(
         json.dumps(test_metrics, ensure_ascii=False, indent=2),
         encoding="utf-8",

@@ -5,9 +5,8 @@ import win32com.client
 from config import MAILBOX_SMTP, TARGET_FOLDER, MAX_MESSAGES, UNREAD_ONLY
 
 PR_INTERNET_MESSAGE_ID = "http://schemas.microsoft.com/mapi/proptag/0x1035001E"
-UNREAD_ONLY = False
 
-
+# Outlook-Zeitstempel in ein einheitliches UTC-ISO-Format überführen, damit die weitere Verarbeitung systemunabhängig bleibt.
 def to_utc_iso(dt) -> str:
     if dt.tzinfo is None:
         local_tz = datetime.now().astimezone().tzinfo
@@ -15,10 +14,8 @@ def to_utc_iso(dt) -> str:
     return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+# Liefert die tatsächliche SMTP-Adresse des Absenders.
 def get_sender_smtp(item) -> str:
-    """
-    Liefert die echte SMTP-Adresse.
-    """
     try:
         sender_type = str(getattr(item, "SenderEmailType", "") or "").upper()
 
@@ -34,19 +31,17 @@ def get_sender_smtp(item) -> str:
 
     return str(getattr(item, "SenderEmailAddress", "") or "")
 
-
+# Nach Möglichkeit wird die Message-ID verwendet, weil sich diese zur Identifikation eignet.
 def get_message_id(item) -> str:
     try:
         return item.PropertyAccessor.GetProperty(PR_INTERNET_MESSAGE_ID)
     except Exception:
         return str(item.EntryID)
 
-
+# Aus dem gewünschten Outlook-Postfach die Mails in JSON-Dateien überführen
 def fetch_emails() -> list[dict]:
     outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
 
-    # Orientierung am Ursprung:
-    # direkt das Postfach per angezeigtem Namen/Mailadresse holen
     mailbox = outlook.Folders.Item(MAILBOX_SMTP)
     target_folder = mailbox.Folders.Item(TARGET_FOLDER)
 

@@ -36,3 +36,18 @@ CLASSIFIER_MODELS = {
         "max_length": 256,
     },
 }
+
+# Zielstruktur für Azure DevOps.
+DEFAULT_ENVIRONMENT = "PROD"
+ITERATION_ROOT = "SEU"
+RELEASE_CUTOFF_DAYS = 14
+
+# Es wird die Produktivsetzung als Release-Datum verwendet.
+RELEASE_PRODUCTIVE_DATES = {
+    2026: [
+        "2026-03-21",
+        "2026-06-13",
+        "2026-09-12",
+        "2026-11-28",
+    ],
+}

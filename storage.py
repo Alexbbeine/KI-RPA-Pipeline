@@ -6,7 +6,6 @@ from typing import Any, Iterable
 
 from config import EMAILS_DIR, ERRORS_DIR, PROCESSED_DIR, STATE_DIR, TICKETS_DIR
 
-# Rueckwaertskompatibel zum bisherigen Projektaufbau.
 STORED_EMAIL_IDS_FILE = STATE_DIR / "_processed_ids.txt"
 TICKETED_IDS_FILE = STATE_DIR / "_ticketed_ids.txt"
 
@@ -21,7 +20,6 @@ def ensure_directories() -> None:
 
 def _load_id_set(path: Path) -> set[str]:
     ensure_directories()
-
     if not path.exists():
         return set()
 
@@ -100,9 +98,7 @@ def save_email_json(record: dict[str, Any]) -> Path:
     return target_path
 
 
-def save_ticket_json(record: dict[str, Any]) -> Path:
-    received_utc = record["email"]["received_utc"]
-    message_id = record["meta"]["message_id"]
+def save_ticket_json(record: dict[str, Any], *, received_utc: str, message_id: str) -> Path:
     target_path = TICKETS_DIR / build_ticket_filename(received_utc, message_id)
     write_json_atomic(target_path, record)
     return target_path

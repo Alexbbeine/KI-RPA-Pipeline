@@ -4,3 +4,4 @@ __pycache__/
 models/
 training/
 *.xlsx
+data/

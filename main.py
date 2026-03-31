@@ -1,75 +1,288 @@
+import argparse
+import traceback
+from pathlib import Path
+
 from outlook_reader import fetch_emails
 from preprocessing import preprocess_email
-from storage import load_processed_ids, append_processed_id, save_email_json
+from storage import (
+    append_stored_email_id,
+    append_ticketed_id,
+    iter_email_json_files,
+    load_json,
+    load_stored_email_ids,
+    load_ticketed_ids,
+    save_email_json,
+    save_error_report,
+    save_ticket_json,
+    utc_now_iso,
+)
+
+from classification.predict_ticket_classifier import (
+    build_predicted_ticket,
+    classify_email_text,
+    load_classifiers,
+)
 
 
-def main():
-    # Bereits verarbeitete Message_IDs laden, damit keine Mail doppelt verarbeitet wird.
-    processed_ids = load_processed_ids()
+def build_inbox_record(email: dict) -> dict:
+    return {
+        "email": {
+            "subject": email.get("subject", ""),
+            "sender": email.get("sender", ""),
+            "received_utc": email.get("received_utc", utc_now_iso()),
+            "body": email.get("body", ""),
+        },
+        "meta": {
+            "source": "outlook_desktop",
+            "message_id": email.get("message_id", "UNKNOWN_MESSAGE_ID"),
+            "stored_at_utc": utc_now_iso(),
+        },
+        "status": {
+            "stored_in_inbox": True,
+            "ticket_created": False,
+        },
+    }
 
-    # E-Mails aus dem vordefinierten Outlook-Ordner auslesen.
-    emails = fetch_emails()
 
-    # Zähler initialisieren.
-    total_read = len(emails)
-    processed_count = 0
-    skipped_count = 0
-    error_count = 0
+def build_ticket_record(
+    inbox_record: dict,
+    source_email_path: Path,
+    processed: dict,
+    classifications: dict,
+    predicted_ticket: dict,
+) -> dict:
+    return {
+        "email": {
+            "subject": inbox_record.get("email", {}).get("subject", ""),
+            "subject_cleaned": processed["subject_cleaned"],
+            "sender": inbox_record.get("email", {}).get("sender", ""),
+            "received_utc": inbox_record.get("email", {}).get("received_utc", utc_now_iso()),
+            "body": inbox_record.get("email", {}).get("body", ""),
+            "body_cleaned": processed["body_cleaned"],
+            "text_for_classification": processed["text_for_classification"],
+        },
+        "ticket": predicted_ticket,
+        "classification": classifications,
+        "preprocessing": processed["preprocessing"],
+        "meta": {
+            "source": inbox_record.get("meta", {}).get("source", "outlook_desktop"),
+            "message_id": inbox_record.get("meta", {}).get("message_id", "UNKNOWN_MESSAGE_ID"),
+            "source_email_file": str(source_email_path),
+            "ticket_created_at_utc": utc_now_iso(),
+        },
+    }
 
-    print(f"[INFO] {total_read} Mail(s) aus Outlook ausgelesen.")
 
-    # Jede aus Outlook geladene E-Mails nacheinander verarbeiten.
+def build_error_report(stage: str, message_id: str, error: Exception, context: dict | None = None) -> dict:
+    return {
+        "timestamp_utc": utc_now_iso(),
+        "stage": stage,
+        "message_id": message_id,
+        "error": {
+            "type": error.__class__.__name__,
+            "message": str(error),
+            "traceback": traceback.format_exc(),
+        },
+        "context": context or {},
+    }
+
+
+def fetch_and_store_new_emails() -> dict:
+    stored_ids = load_stored_email_ids()
+
+    summary = {
+        "read": 0,
+        "stored": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+
+    try:
+        emails = fetch_emails()
+        summary["read"] = len(emails)
+        print(f"[INFO] {summary['read']} Mail(s) aus Outlook ausgelesen.")
+    except Exception as error:
+        summary["errors"] += 1
+        report = build_error_report(
+            stage="fetch_mailbox",
+            message_id="OUTLOOK_FETCH_STAGE",
+            error=error,
+            context={},
+        )
+        error_path = save_error_report(report)
+        print(f"[ERROR][FETCH] Outlook konnte nicht gelesen werden: {error} -> {error_path.name}")
+        return summary
+
     for email in emails:
-        # Die Message-ID dient als technischer Schlüssel zur eindeutigen Identifikation.
         message_id = email.get("message_id", "UNKNOWN_MESSAGE_ID")
 
         try:
-            # Bereits bekannte Nachrichten werden übersprungen, um Duplikate in der weiteren Verarbeitung zur vermeiden.
-            if message_id in processed_ids:
-                skipped_count += 1
-                print(f"[SKIP] Bereits verarbeitet: {message_id}")
+            if message_id in stored_ids:
+                summary["skipped"] += 1
+                print(f"[SKIP][FETCH] Bereits in emails_inbox vorhanden: {message_id}")
                 continue
 
-            # Betreff und Nachrichtentext für die spätere Klassifkation bereinigen.
-            processed = preprocess_email(email["subject"], email["body"])
+            inbox_record = build_inbox_record(email)
+            target_path = save_email_json(inbox_record)
+            append_stored_email_id(message_id)
+            stored_ids.add(message_id)
 
-            # Einheitliches JSON-Objekt aufbauen, das als Übergabeformat für die Ticketanalage dient.
-            record = {
-                "email": {
-                    "subject": email["subject"],
-                    "subject_cleaned": processed["subject_cleaned"],
-                    "sender": email["sender"],
-                    "received_utc": email["received_utc"],
-                    "body": email["body"],
-                    "body_cleaned": processed["body_cleaned"],
-                    # Zusammengeführter und bereinigter Text für die ML-Modelle.
-                    "text_for_classification": processed["text_for_classification"],
+            summary["stored"] += 1
+            print(f"[OK][FETCH] Gespeichert: {target_path.name}")
+
+        except Exception as error:
+            summary["errors"] += 1
+            report = build_error_report(
+                stage="fetch_to_inbox",
+                message_id=message_id,
+                error=error,
+                context={
+                    "email_preview": {
+                        "subject": email.get("subject", ""),
+                        "sender": email.get("sender", ""),
+                        "received_utc": email.get("received_utc", ""),
+                    }
                 },
-                # Metainformationen für die Auditierbarkeit.
-                "preprocessing": processed["preprocessing"],
-                "meta": {
-                    "source": "outlook_desktop",
-                    "message_id": message_id,
+            )
+            error_path = save_error_report(report)
+            print(f"[ERROR][FETCH] {message_id}: {error} -> {error_path.name}")
+
+    return summary
+
+
+def get_processed_payload(inbox_record: dict) -> dict:
+    email = inbox_record.get("email", {})
+    subject = email.get("subject", "")
+    body = email.get("body", "")
+
+    processed = preprocess_email(subject, body)
+
+    existing_text = email.get("text_for_classification", "")
+    if existing_text and processed["text_for_classification"].strip() == "":
+        processed["subject_cleaned"] = email.get("subject_cleaned", processed["subject_cleaned"])
+        processed["body_cleaned"] = email.get("body_cleaned", processed["body_cleaned"])
+        processed["text_for_classification"] = existing_text
+        processed["preprocessing"] = inbox_record.get("preprocessing", processed["preprocessing"])
+
+    return processed
+
+
+def classify_pending_emails() -> dict:
+    ticketed_ids = load_ticketed_ids()
+    email_files = list(iter_email_json_files())
+
+    summary = {
+        "checked": len(email_files),
+        "ticketed": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+
+    try:
+        classifiers = load_classifiers()
+        print(f"[INFO] {len(classifiers)} Klassifikator(en) geladen.")
+    except Exception as error:
+        summary["errors"] += 1
+        report = build_error_report(
+            stage="load_classifiers",
+            message_id="CLASSIFIER_LOAD_STAGE",
+            error=error,
+            context={},
+        )
+        error_path = save_error_report(report)
+        print(f"[ERROR][CLASSIFY] Klassifikatoren konnten nicht geladen werden: {error} -> {error_path.name}")
+        return summary
+
+    for email_file in email_files:
+        message_id = "UNKNOWN_MESSAGE_ID"
+
+        try:
+            inbox_record = load_json(email_file)
+            message_id = inbox_record.get("meta", {}).get("message_id", "UNKNOWN_MESSAGE_ID")
+
+            if message_id in ticketed_ids:
+                summary["skipped"] += 1
+                print(f"[SKIP][CLASSIFY] Ticket bereits vorhanden: {message_id}")
+                continue
+
+            processed = get_processed_payload(inbox_record)
+            text_for_classification = processed["text_for_classification"]
+
+            if not text_for_classification.strip():
+                raise ValueError("Der klassifizierbare Text ist leer.")
+
+            classifications = classify_email_text(text_for_classification, classifiers)
+            predicted_ticket = build_predicted_ticket(classifications)
+
+            ticket_record = build_ticket_record(
+                inbox_record=inbox_record,
+                source_email_path=email_file,
+                processed=processed,
+                classifications=classifications,
+                predicted_ticket=predicted_ticket,
+            )
+
+            ticket_path = save_ticket_json(ticket_record)
+            append_ticketed_id(message_id)
+            ticketed_ids.add(message_id)
+
+            summary["ticketed"] += 1
+            print(f"[OK][CLASSIFY] Ticket gespeichert: {ticket_path.name}")
+
+        except Exception as error:
+            summary["errors"] += 1
+            report = build_error_report(
+                stage="classification",
+                message_id=message_id,
+                error=error,
+                context={
+                    "source_email_file": str(email_file),
                 },
-            }
+            )
+            error_path = save_error_report(report)
+            print(f"[ERROR][CLASSIFY] {message_id}: {error} -> {error_path.name}")
 
-            save_email_json(record)
-            append_processed_id(message_id)
-            processed_ids.add(message_id)
+    return summary
 
-            processed_count += 1
-            print(f"[OK] Mail verarbeitet: {message_id}")
 
-        except Exception as ex:
-            error_count += 1
-            print(f"[ERROR] Fehler bei Mail {message_id}: {ex}")
+def print_summary(fetch_summary: dict, classification_summary: dict) -> None:
+    print("\n--- Zusammenfassung Fetch-Stufe ---")
+    print(f"Ausgelesen:      {fetch_summary['read']}")
+    print(f"Gespeichert:     {fetch_summary['stored']}")
+    print(f"Übersprungen:   {fetch_summary['skipped']}")
+    print(f"Fehler:          {fetch_summary['errors']}")
 
-    # Zusammenfassung des aktuellen Ausführungslaufs geben.
-    print("\n--- Zusammenfassung ---")
-    print(f"Ausgelesen:   {total_read}")
-    print(f"Verarbeitet:  {processed_count}")
-    print(f"Übersprungen: {skipped_count}")
-    print(f"Fehler:       {error_count}")
+    print("\n--- Zusammenfassung Klassifikations-Stufe ---")
+    print(f"Geprüft:        {classification_summary['checked']}")
+    print(f"Ticket erstellt: {classification_summary['ticketed']}")
+    print(f"Übersprungen:   {classification_summary['skipped']}")
+    print(f"Fehler:          {classification_summary['errors']}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--mode",
+        choices=["all", "fetch", "classify"],
+        default="all",
+        help="all = Outlook lesen und anschliessend inbox JSON klassifizieren, fetch = nur Outlook nach emails_inbox, classify = nur vorhandene inbox JSON verarbeiten",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    fetch_summary = {"read": 0, "stored": 0, "skipped": 0, "errors": 0}
+    classification_summary = {"checked": 0, "ticketed": 0, "skipped": 0, "errors": 0}
+
+    if args.mode in {"all", "fetch"}:
+        fetch_summary = fetch_and_store_new_emails()
+
+    if args.mode in {"all", "classify"}:
+        classification_summary = classify_pending_emails()
+
+    print_summary(fetch_summary, classification_summary)
 
 
 if __name__ == "__main__":

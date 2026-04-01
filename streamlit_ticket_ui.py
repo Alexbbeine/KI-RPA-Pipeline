@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -56,6 +57,12 @@ def format_confidence(value: float | None) -> str:
     return f"{float(value):.1%}"
 
 
+def format_area_display(value: str) -> str:
+    if not value:
+        return "-"
+    return str(value).replace("\\", "/")
+
+
 def build_display_dataframe(rows: list[dict[str, Any]]) -> tuple[pd.DataFrame, pd.DataFrame]:
     raw_df = pd.DataFrame(rows)
     if raw_df.empty:
@@ -81,11 +88,11 @@ def build_display_dataframe(rows: list[dict[str, Any]]) -> tuple[pd.DataFrame, p
             "Absender": raw_df["sender"],
             "Empfangen": raw_df["received_utc"].apply(format_timestamp),
             "Typ": raw_df["ticket_type"],
-            "Bereich": raw_df["area"],
+            "Bereich": raw_df["area"].apply(format_area_display),
             "Priorität": raw_df["priority"],
-            "Impact": raw_df["impact"],
+            "Schweregrad": raw_df["impact"],
             "Ø Konfidenz": raw_df["average_confidence"].apply(format_confidence),
-            "Manuell geaendert": raw_df["manually_edited"].map({True: "Ja", False: "Nein"}),
+            "Manuell geändert": raw_df["manually_edited"].map({True: "Ja", False: "Nein"}),
             "Beschreibung": raw_df["description_preview"],
         }
     )
@@ -102,9 +109,9 @@ def apply_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     all_priorities = sorted({row.get("priority", "") for row in rows if row.get("priority")})
 
     selected_types = st.sidebar.multiselect("Ticket-Typ", options=all_types)
-    selected_areas = st.sidebar.multiselect("Bereich", options=all_areas)
+    selected_areas = st.sidebar.multiselect("Bereich", options=all_areas, format_func=format_area_display)
     selected_priorities = st.sidebar.multiselect("Priorität", options=all_priorities)
-    only_manual = st.sidebar.toggle("Nur manuell geaenderte Tickets", value=False)
+    only_manual = st.sidebar.toggle("Nur manuell geänderte Tickets", value=False)
     min_confidence = st.sidebar.slider("Minimale Ø Konfidenz", 0.0, 1.0, 0.0, 0.05)
 
     filtered_rows: list[dict[str, Any]] = []
@@ -141,18 +148,58 @@ def apply_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return filtered_rows
 
 
+def render_distribution_chart(counts: pd.Series, title: str, label_formatter=None) -> None:
+    st.subheader(title)
+
+    if counts.empty:
+        st.info("Noch keine Daten für diese Verteilung vorhanden.")
+        return
+
+    chart_df = counts.reset_index()
+    chart_df.columns = ["Kategorie", "Anzahl"]
+
+    if label_formatter is not None:
+        chart_df["Kategorie"] = chart_df["Kategorie"].apply(label_formatter)
+
+    chart = (
+        alt.Chart(chart_df)
+        .mark_bar()
+        .encode(
+            x=alt.X("Anzahl:Q", title="Anzahl", axis=alt.Axis(format="d", tickMinStep=1)),
+            y=alt.Y("Kategorie:N", sort="-x", title=None),
+            tooltip=[alt.Tooltip("Kategorie:N", title="Kategorie"), alt.Tooltip("Anzahl:Q", title="Anzahl")],
+        )
+        .properties(height=max(180, len(chart_df) * 45))
+    )
+
+    st.altair_chart(chart, use_container_width=True)
+
+
+def build_select_state(base_options: list[str], current_value: str) -> tuple[list[str], int]:
+    options = [option for option in base_options if option]
+    current_value = str(current_value or "").strip()
+
+    if current_value and current_value not in options:
+        options = [*options, current_value]
+
+    if not options:
+        options = [""]
+
+    index = options.index(current_value) if current_value in options else 0
+    return options, index
+
+
 def render_overview_page() -> None:
     rows = get_ticket_index()
 
     st.title("KI Ticket Pilot")
     st.caption(
-        "Übersicht über alle klassifizierten Tickets aus dem Postfach inklusive Modellkonfidenzen und manueller Nachbearbeitung."
+        "Übersicht über alle klassifizierten Tickets aus dem Postfach."
     )
 
     if not rows:
         st.info(
-            f"Im Verzeichnis {Path(TICKETS_DIR)} wurden noch keine TICKET-JSON-Dateien gefunden. "
-        )
+            f"Im Verzeichnis {Path(TICKETS_DIR)} wurden noch keine TICKET-JSON-Dateien gefunden. "        )
         return
 
     filtered_rows = apply_filters(rows)
@@ -171,14 +218,12 @@ def render_overview_page() -> None:
     chart_left, chart_right = st.columns(2)
 
     with chart_left:
-        st.subheader("Verteilung nach Ticket-Typ")
         type_counts = raw_df["ticket_type"].replace("", "Unbekannt").value_counts()
-        st.bar_chart(type_counts)
+        render_distribution_chart(type_counts, "Verteilung nach Ticket-Typ")
 
     with chart_right:
-        st.subheader("Verteilung nach Bereich")
         area_counts = raw_df["area"].replace("", "Unbekannt").value_counts().head(10)
-        st.bar_chart(area_counts)
+        render_distribution_chart(area_counts, "Verteilung nach Bereich", label_formatter=format_area_display)
 
     st.subheader("Ticketliste")
     event = st.dataframe(
@@ -195,7 +240,7 @@ def render_overview_page() -> None:
             "Typ": st.column_config.TextColumn(width="medium"),
             "Bereich": st.column_config.TextColumn(width="medium"),
             "Priorität": st.column_config.TextColumn(width="small"),
-            "Impact": st.column_config.TextColumn(width="small"),
+            "Schweregrad": st.column_config.TextColumn(width="medium"),
             "Ø Konfidenz": st.column_config.TextColumn(width="small"),
             "Manuell geändert": st.column_config.TextColumn(width="small"),
             "Beschreibung": st.column_config.TextColumn(width="large"),
@@ -207,7 +252,7 @@ def render_overview_page() -> None:
         selected_row = raw_df.iloc[selected_rows[0]]
         info_col, action_col = st.columns([4, 1])
         info_col.info(
-            f"Ausgewählt: {selected_row['title']} | Typ: {selected_row['ticket_type'] or '-'} | Bereich: {selected_row['area'] or '-'}"
+            f"Ausgewählt: {selected_row['title']} | Typ: {selected_row['ticket_type'] or '-'} | Bereich: {format_area_display(selected_row['area']) or '-'}"
         )
         if action_col.button("Ticket öffnen", use_container_width=True, type="primary"):
             st.session_state["selected_ticket_id"] = selected_row["ticket_id"]
@@ -217,11 +262,12 @@ def render_overview_page() -> None:
 def render_detail_page() -> None:
     rows = get_ticket_index()
     flash_message = st.session_state.pop("ticket_flash_message", None)
+
     selected_ticket_id = st.session_state.get("selected_ticket_id")
 
     title_col, action_col = st.columns([4, 1])
     title_col.title("Ticketdetail und Nachbearbeitung")
-    title_col.caption("Pflichtfelder prüfen, bei Bedarf korrigieren und als JSON-Datei abspeichern.")
+    title_col.caption("Pflichtfelder prüfen, bei Bedarf korrigieren und abspeichern.")
 
     if action_col.button("Zur Übersicht", use_container_width=True):
         st.switch_page(OVERVIEW_PAGE)
@@ -246,11 +292,13 @@ def render_detail_page() -> None:
     meta = record.get("meta", {})
     ticket = record.get("ticket", {})
 
-    meta_columns = st.columns(4)
-    meta_columns[0].metric("Message-ID", meta.get("message_id", "-"))
-    meta_columns[1].metric("Empfangen", format_timestamp(email.get("received_utc", "")))
-    meta_columns[2].metric("Absender", email.get("sender", "-"))
-    meta_columns[3].metric("Datei", source_path.name)
+    meta_top = st.columns(2)
+    meta_top[0].text_input("Message-ID", value=meta.get("message_id", "-"), disabled=True)
+    meta_top[1].text_input("Dateiname", value=source_path.name, disabled=True)
+
+    meta_bottom = st.columns(2)
+    meta_bottom[0].text_input("Empfangen", value=format_timestamp(email.get("received_utc", "")), disabled=True)
+    meta_bottom[1].text_input("Absender", value=email.get("sender", "-"), disabled=True)
 
     confidence_rows = build_classification_overview(record)
     if confidence_rows:
@@ -261,38 +309,49 @@ def render_detail_page() -> None:
     else:
         confidence_df = pd.DataFrame(columns=["Modell", "Vorhersage", "Konfidenz", "Alternative 1", "Alternative 2", "Modellpfad"])
 
+    area_options, area_index = build_select_state(option_map["area"], editable_ticket["Area"])
+    ticket_type_options, ticket_type_index = build_select_state(option_map["ticket_type"], editable_ticket["Ticket-Type"])
+    environment_options, environment_index = build_select_state(option_map["environment"], editable_ticket["Environment"])
+    priority_options, priority_index = build_select_state(option_map["priority"], editable_ticket["Prio"])
+    impact_options, impact_index = build_select_state(option_map["impact"], editable_ticket["Impact"])
+
     st.subheader("Vorausgefüllte Pflichtfelder")
     with st.form("ticket_edit_form"):
         first_row = st.columns(2)
-        title_value = first_row[0].text_input("Title", value=editable_ticket["Title"])
-        area_options = option_map["area"]
+        title_value = first_row[0].text_input("Titel", value=editable_ticket["Title"])
         area_value = first_row[1].selectbox(
-            "Area",
-            options=[editable_ticket["Area"], *[value for value in area_options if value != editable_ticket["Area"]]] or [""],
+            "Bereichspfad",
+            options=area_options,
+            index=area_index,
+            format_func=format_area_display,
         )
 
         second_row = st.columns(2)
         ticket_type_value = second_row[0].selectbox(
-            "Ticket-Type",
-            options=[editable_ticket["Ticket-Type"], *[value for value in option_map["ticket_type"] if value != editable_ticket["Ticket-Type"]]] or [""],
+            "Ticket-Typ",
+            options=ticket_type_options,
+            index=ticket_type_index,
         )
         iteration_value = second_row[1].text_input("Iteration", value=editable_ticket["Iteration"])
 
         third_row = st.columns(3)
         environment_value = third_row[0].selectbox(
-            "Environment",
-            options=[editable_ticket["Environment"], *[value for value in option_map["environment"] if value != editable_ticket["Environment"]]] or [""],
+            "Umgebung",
+            options=environment_options,
+            index=environment_index,
         )
         priority_value = third_row[1].selectbox(
-            "Prio",
-            options=[editable_ticket["Prio"], *[value for value in option_map["priority"] if value != editable_ticket["Prio"]]] or [""],
+            "Priorität",
+            options=priority_options,
+            index=priority_index,
         )
         impact_value = third_row[2].selectbox(
-            "Impact",
-            options=[editable_ticket["Impact"], *[value for value in option_map["impact"] if value != editable_ticket["Impact"]]] or [""],
+            "Schweregrad",
+            options=impact_options,
+            index=impact_index,
         )
 
-        description_value = st.text_area("Description", value=editable_ticket["Description"], height=260)
+        description_value = st.text_area("Beschreibung", value=editable_ticket["Description"], height=260)
 
         submitted = st.form_submit_button("Änderungen speichern", type="primary", use_container_width=True)
 
@@ -314,7 +373,7 @@ def render_detail_page() -> None:
         get_ticket_index_cached.clear()
         if changed_fields:
             field_list = ", ".join(changed_fields.keys())
-            st.session_state["ticket_flash_message"] = f"Ticket gespeichert. Gäenderte Felder: {field_list}"
+            st.session_state["ticket_flash_message"] = f"Ticket gespeichert. Geänderte Felder: {field_list}"
         else:
             st.session_state["ticket_flash_message"] = "Es wurden keine Änderungen erkannt."
         st.rerun()
@@ -323,8 +382,15 @@ def render_detail_page() -> None:
 
     with expander_left:
         with st.expander("Modellvorhersagen und Konfidenzen", expanded=True):
+            display_confidence_df = confidence_df.copy()
+            if "Konfidenz" in display_confidence_df:
+                display_confidence_df["Konfidenz"] = display_confidence_df["Konfidenz"].apply(format_confidence)
+            if "Vorhersage" in display_confidence_df:
+                display_confidence_df["Vorhersage"] = display_confidence_df["Vorhersage"].apply(
+                    lambda value: format_area_display(value) if isinstance(value, str) and "SEU\\" in value else value
+                )
             st.dataframe(
-                confidence_df.assign(Konfidenz=confidence_df["Konfidenz"].apply(format_confidence)),
+                display_confidence_df,
                 use_container_width=True,
                 hide_index=True,
             )
@@ -362,7 +428,15 @@ def render_detail_page() -> None:
                                 "Neu": payload.get("new", ""),
                             }
                         )
-                st.dataframe(pd.DataFrame(history_rows), use_container_width=True, hide_index=True)
+                history_df = pd.DataFrame(history_rows)
+                if not history_df.empty:
+                    history_df["Alt"] = history_df["Alt"].apply(
+                        lambda value: format_area_display(value) if isinstance(value, str) and "SEU\\" in value else value
+                    )
+                    history_df["Neu"] = history_df["Neu"].apply(
+                        lambda value: format_area_display(value) if isinstance(value, str) and "SEU\\" in value else value
+                    )
+                st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 
 st.set_page_config(

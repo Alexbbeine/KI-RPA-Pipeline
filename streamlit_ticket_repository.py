@@ -22,7 +22,7 @@ CLASSIFICATION_LABELS = {
     "ticket_type": "Ticket-Typ",
     "ticket_area": "Bereich",
     "ticket_priority": "Prioritaet",
-    "ticket_impact": "Impact",
+    "ticket_impact": "Schweregrad",
 }
 
 INDEX_FIELD_MAP = {
@@ -30,6 +30,47 @@ INDEX_FIELD_MAP = {
     "Area": "area",
     "Iteration": "iteration",
     "Description": "description",
+    "Ticket-Type": "ticket_type",
+    "Environment": "environment",
+    "Prio": "priority",
+    "Impact": "impact",
+}
+
+CANONICAL_AREA_OPTIONS = [
+    "SEU\\ALH\\Analytics",
+    "SEU\\ALH\\Architektur",
+    "SEU\\ALH\\Kranken",
+    "SEU\\ALH\\Leben",
+    "SEU\\ALH\\Sach",
+    "SEU\\ALH\\Vertrieb",
+    "SEU\\ALH\\Zentrale Systeme",
+]
+
+FIXED_SELECT_OPTIONS = {
+    "ticket_type": ["ChangeRequest", "Problem"],
+    "area": CANONICAL_AREA_OPTIONS,
+    "priority": ["1", "2", "3", "4"],
+    "impact": ["1 - Kritisch", "2 - Hoch", "3 - Mittel", "4 - Niedrig"],
+    "environment": ["PROD", "RFRG"],
+    "iteration": [],
+}
+
+IMPACT_LABEL_MAP = {
+    "1": "1 - Kritisch",
+    "2": "2 - Hoch",
+    "3": "3 - Mittel",
+    "4": "4 - Niedrig",
+}
+
+TICKET_TYPE_LABEL_MAP = {
+    "problem": "Problem",
+    "change request": "ChangeRequest",
+    "changerequest": "ChangeRequest",
+    "change-request": "ChangeRequest",
+}
+
+FIELD_TO_OPTION_KEY = {
+    "Area": "area",
     "Ticket-Type": "ticket_type",
     "Environment": "environment",
     "Prio": "priority",
@@ -52,6 +93,87 @@ def _as_text(value: Any) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def _normalize_spaces(value: str) -> str:
+    return " ".join(value.split())
+
+
+def _normalize_area(value: Any) -> str:
+    text = _normalize_spaces(_as_text(value).strip())
+    if not text:
+        return ""
+
+    normalized = text.replace("/", "\\")
+    alias_map = {
+        "SEU\\ALH\\ZentraleSysteme": "SEU\\ALH\\Zentrale Systeme",
+        "SEU\\ALH\\ZENTRALESYSTEME": "SEU\\ALH\\Zentrale Systeme",
+    }
+
+    if normalized in alias_map:
+        return alias_map[normalized]
+
+    for canonical in CANONICAL_AREA_OPTIONS:
+        if normalized.lower() == canonical.lower():
+            return canonical
+
+    return normalized
+
+
+def _normalize_ticket_type(value: Any) -> str:
+    text = _normalize_spaces(_as_text(value).strip())
+    if not text:
+        return ""
+
+    return TICKET_TYPE_LABEL_MAP.get(text.lower(), text)
+
+
+def _normalize_priority(value: Any) -> str:
+    text = _normalize_spaces(_as_text(value).strip())
+    if not text:
+        return ""
+
+    leading = text.split("-", 1)[0].strip()
+    if leading in {"1", "2", "3", "4"}:
+        return leading
+
+    return text
+
+
+def _normalize_impact(value: Any) -> str:
+    text = _normalize_spaces(_as_text(value).strip())
+    if not text:
+        return ""
+
+    leading = text.split("-", 1)[0].strip()
+    if leading in IMPACT_LABEL_MAP:
+        return IMPACT_LABEL_MAP[leading]
+
+    return text
+
+
+def _normalize_environment(value: Any) -> str:
+    text = _normalize_spaces(_as_text(value).strip())
+    if not text:
+        return ""
+
+    return text.upper()
+
+
+def normalize_option_value(option_key: str, value: Any) -> str:
+    if option_key == "area":
+        return _normalize_area(value)
+    if option_key == "ticket_type":
+        return _normalize_ticket_type(value)
+    if option_key == "priority":
+        return _normalize_priority(value)
+    if option_key == "impact":
+        return _normalize_impact(value)
+    if option_key == "environment":
+        return _normalize_environment(value)
+    if option_key == "iteration":
+        return _normalize_spaces(_as_text(value).strip())
+    return _normalize_spaces(_as_text(value).strip())
 
 
 def _extract_confidence_map(classification: dict[str, Any]) -> dict[str, float]:
@@ -99,12 +221,12 @@ def normalize_ticket_record(record: dict[str, Any], source_path: Path) -> dict[s
         "sender": _as_text(email.get("sender")),
         "received_utc": received_utc,
         "ticket_created_at_utc": created_utc,
-        "ticket_type": _as_text(ticket.get("Ticket-Type")),
-        "area": _as_text(ticket.get("Area")),
-        "iteration": _as_text(ticket.get("Iteration")),
-        "environment": _as_text(ticket.get("Environment")),
-        "priority": _as_text(ticket.get("Prio")),
-        "impact": _as_text(ticket.get("Impact")),
+        "ticket_type": normalize_option_value("ticket_type", ticket.get("Ticket-Type")),
+        "area": normalize_option_value("area", ticket.get("Area")),
+        "iteration": normalize_option_value("iteration", ticket.get("Iteration")),
+        "environment": normalize_option_value("environment", ticket.get("Environment")),
+        "priority": normalize_option_value("priority", ticket.get("Prio")),
+        "impact": normalize_option_value("impact", ticket.get("Impact")),
         "description": description,
         "description_preview": _truncate(description),
         "average_confidence": average_confidence,
@@ -123,7 +245,7 @@ def load_ticket_index(ticket_dir: Path | None = None) -> list[dict[str, Any]]:
         try:
             record = load_json(ticket_file)
             rows.append(normalize_ticket_record(record, ticket_file))
-        except Exception as error:  # pragma: no cover - defensive path for malformed files
+        except Exception as error:
             rows.append(
                 {
                     "ticket_id": ticket_file.stem,
@@ -180,13 +302,13 @@ def build_editable_ticket(record: dict[str, Any]) -> dict[str, str]:
 
     editable = {
         "Title": _as_text(ticket.get("Title") or email.get("subject")),
-        "Area": _as_text(ticket.get("Area")),
-        "Iteration": _as_text(ticket.get("Iteration")),
+        "Area": normalize_option_value("area", ticket.get("Area")),
+        "Iteration": normalize_option_value("iteration", ticket.get("Iteration")),
         "Description": _as_text(ticket.get("Description") or email.get("body_cleaned") or email.get("body")),
-        "Ticket-Type": _as_text(ticket.get("Ticket-Type")),
-        "Environment": _as_text(ticket.get("Environment")),
-        "Prio": _as_text(ticket.get("Prio")),
-        "Impact": _as_text(ticket.get("Impact")),
+        "Ticket-Type": normalize_option_value("ticket_type", ticket.get("Ticket-Type")),
+        "Environment": normalize_option_value("environment", ticket.get("Environment")),
+        "Prio": normalize_option_value("priority", ticket.get("Prio")),
+        "Impact": normalize_option_value("impact", ticket.get("Impact")),
     }
     return editable
 
@@ -197,10 +319,21 @@ def build_classification_overview(record: dict[str, Any]) -> list[dict[str, str 
     for classifier_key, payload in record.get("classification", {}).items():
         top_3 = payload.get("top_3", []) or []
         alternatives = [item.get("label", "") for item in top_3[1:3] if isinstance(item, dict)]
+        prediction = _as_text(payload.get("label"))
+
+        if classifier_key == "ticket_type":
+            prediction = normalize_option_value("ticket_type", prediction)
+        elif classifier_key == "ticket_area":
+            prediction = normalize_option_value("area", prediction)
+        elif classifier_key == "ticket_priority":
+            prediction = normalize_option_value("priority", prediction)
+        elif classifier_key == "ticket_impact":
+            prediction = normalize_option_value("impact", prediction)
+
         rows.append(
             {
                 "Modell": CLASSIFICATION_LABELS.get(classifier_key, classifier_key),
-                "Vorhersage": _as_text(payload.get("label")),
+                "Vorhersage": prediction,
                 "Konfidenz": float(payload.get("softmax_confidence", 0.0) or 0.0),
                 "Alternative 1": alternatives[0] if len(alternatives) > 0 else "",
                 "Alternative 2": alternatives[1] if len(alternatives) > 1 else "",
@@ -213,32 +346,27 @@ def build_classification_overview(record: dict[str, Any]) -> list[dict[str, str 
 
 def collect_options(index_rows: list[dict[str, Any]]) -> dict[str, list[str]]:
     options: dict[str, list[str]] = {
-        "ticket_type": [],
-        "area": [],
-        "priority": [],
-        "impact": [],
-        "environment": [],
-        "iteration": [],
+        key: list(values) for key, values in FIXED_SELECT_OPTIONS.items()
     }
 
     for row in index_rows:
         for key in options:
-            value = _as_text(row.get(key)).strip()
+            value = normalize_option_value(key, row.get(key))
             if value and value not in options[key]:
                 options[key].append(value)
-
-    for key, values in options.items():
-        options[key] = sorted(values)
 
     return options
 
 
 def option_list(values: list[str], current_value: str) -> list[str]:
     unique_values = [value for value in values if value]
+    current_value = _as_text(current_value).strip()
+
     if current_value and current_value not in unique_values:
-        unique_values = [current_value, *unique_values]
+        unique_values.append(current_value)
     if not unique_values:
         unique_values = [""]
+
     return unique_values
 
 
@@ -258,14 +386,27 @@ def update_ticket_record(
 
     for field in EDITABLE_TICKET_FIELDS:
         new_value = _as_text(updated_ticket.get(field))
+
         if field != "Description":
             new_value = new_value.strip()
         else:
             new_value = new_value.strip("\n")
 
-        old_value = original_ticket.get(field, "")
-        if old_value != new_value:
-            changed_fields[field] = {"old": old_value, "new": new_value}
+        option_key = FIELD_TO_OPTION_KEY.get(field)
+        if option_key:
+            new_value = normalize_option_value(option_key, new_value)
+
+        old_value_raw = original_ticket.get(field, "")
+        if field != "Description":
+            old_value_compare = old_value_raw.strip()
+        else:
+            old_value_compare = old_value_raw.strip("\n")
+
+        if option_key:
+            old_value_compare = normalize_option_value(option_key, old_value_compare)
+
+        if old_value_compare != new_value:
+            changed_fields[field] = {"old": old_value_raw, "new": new_value}
             ticket[field] = new_value
 
     if not changed_fields:

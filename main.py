@@ -28,12 +28,14 @@ from classification.predict_ticket_classifier import (
     load_classifiers,
 )
 
+VALID_PIPELINE_MODES = {"all", "fetch", "classify"}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mode",
-        choices=["all", "fetch", "classify"],
+        choices=sorted(VALID_PIPELINE_MODES),
         default="all",
         help="all = Outlook lesen und anschliessend inbox JSON klassifizieren, fetch = nur Outlook nach emails_inbox, classify = nur vorhandene inbox JSON verarbeiten",
     )
@@ -352,19 +354,32 @@ def print_summary(fetch_summary: dict, classification_summary: dict) -> None:
     print(f"Fehler:          {classification_summary['errors']}")
 
 
-def main() -> None:
-    args = parse_args()
+def run_pipeline(mode: str = "all") -> dict:
+    if mode not in VALID_PIPELINE_MODES:
+        valid_modes = ", ".join(sorted(VALID_PIPELINE_MODES))
+        raise ValueError(f"Ungültiger Modus '{mode}'. Erlaubt sind: {valid_modes}.")
 
     fetch_summary = {"read": 0, "stored": 0, "skipped": 0, "errors": 0}
     classification_summary = {"checked": 0, "ticketed": 0, "skipped": 0, "errors": 0}
 
-    if args.mode in {"all", "fetch"}:
+    if mode in {"all", "fetch"}:
         fetch_summary = fetch_and_store_new_emails()
 
-    if args.mode in {"all", "classify"}:
+    if mode in {"all", "classify"}:
         classification_summary = classify_pending_emails()
 
-    print_summary(fetch_summary, classification_summary)
+    return {
+        "mode": mode,
+        "fetch": fetch_summary,
+        "classification": classification_summary,
+        "finished_at_utc": utc_now_iso(),
+    }
+
+
+def main() -> None:
+    args = parse_args()
+    pipeline_result = run_pipeline(args.mode)
+    print_summary(pipeline_result["fetch"], pipeline_result["classification"])
 
 
 if __name__ == "__main__":

@@ -11,6 +11,9 @@ ERRORS_DIR = DATA_DIR / "errors"
 STATE_DIR = DATA_DIR / "state"
 PROCESSED_DIR = DATA_DIR / "processed"
 
+# Zielordner für JSON-Dateien, die vom RPA-Bot weiterverarbeitet werden sollen.
+RPA_INBOX_DIR = Path(r"C:\Blue-Prism\KI-RPA-Pipeline\inbox")
+
 MAILBOX_SMTP = "alexander.beine@hallesche.de"
 TARGET_FOLDER = "KI-RPA-Pipeline"
 
@@ -51,3 +54,23 @@ RELEASE_PRODUCTIVE_DATES = {
         "2026-11-28",
     ],
 }
+
+# Feste Auswahllisten fuer die Streamlit-Oberfläche.
+STREAMLIT_PRIORITY_OPTIONS = ["1", "2", "3", "4"]
+STREAMLIT_IMPACT_OPTIONS = [
+    "1 - Kritisch",
+    "2 - Hoch",
+    "3 - Mittel",
+    "4 - Niedrig",
+]
+STREAMLIT_ENVIRONMENT_OPTIONS = ["PROD", "RFRG"]
+STREAMLIT_TICKET_TYPE_OPTIONS = ["ChangeRequest", "Problem"]
+STREAMLIT_AREA_OPTIONS = [
+    r"SEU\ALH\Analytics",
+    r"SEU\ALH\Architektur",
+    r"SEU\ALH\Kranken",
+    r"SEU\ALH\Leben",
+    r"SEU\ALH\Sach",
+    r"SEU\ALH\Vertrieb",
+    r"SEU\ALH\Zentrale Systeme",
+]

@@ -25,12 +25,14 @@ OVERVIEW_PAGE = None
 DETAIL_PAGE = None
 
 
+# Lädt den Ticketindex gecacht, damit die Übersicht nicht bei jedem Rendern neu aufgebaut werden muss.
 @st.cache_data(show_spinner=False)
 def get_ticket_index_cached(signature: tuple[tuple[str, int], ...]) -> list[dict[str, Any]]:
     del signature
     return load_ticket_index(TICKETS_DIR)
 
 
+# Erzeugt eine Signatur aus Dateinamen und Änderungszeitpunkten, um Änderungen am Ticketbestand zu erkennen.
 def build_inventory_signature() -> tuple[tuple[str, int], ...]:
     directory = Path(TICKETS_DIR)
     directory.mkdir(parents=True, exist_ok=True)
@@ -40,14 +42,17 @@ def build_inventory_signature() -> tuple[tuple[str, int], ...]:
     )
 
 
+# Leert den Cache für den Ticketindex.
 def clear_ticket_cache() -> None:
     get_ticket_index_cached.clear()
 
 
+# Gibt den aktuellen Ticketindex unter Berücksichtigung der Dateisignatur zurück.
 def get_ticket_index() -> list[dict[str, Any]]:
     return get_ticket_index_cached(build_inventory_signature())
 
 
+# Formatiert einen UTC-Zeitstempel für die Anzeige in der Zeitzone Europe/Berlin.
 def format_timestamp(value: str) -> str:
     if not value:
         return "-"
@@ -59,6 +64,7 @@ def format_timestamp(value: str) -> str:
     return parsed.tz_convert("Europe/Berlin").strftime("%d.%m.%Y %H:%M")
 
 
+# Formatiert einen Konfidenzwert als Prozentanzeige.
 def format_confidence(value: float | None) -> str:
     if value is None or pd.isna(value):
         return "-"
@@ -66,6 +72,7 @@ def format_confidence(value: float | None) -> str:
 
 
 
+# Baut aus den Ticketzeilen sowohl das Roh-DataFrame als auch das Anzeige-DataFrame für die UI.
 def build_display_dataframe(rows: list[dict[str, Any]]) -> tuple[pd.DataFrame, pd.DataFrame]:
     raw_df = pd.DataFrame(rows)
     if raw_df.empty:
@@ -103,6 +110,7 @@ def build_display_dataframe(rows: list[dict[str, Any]]) -> tuple[pd.DataFrame, p
     return raw_df.reset_index(drop=True), display_df.reset_index(drop=True)
 
 
+# Rendert die Seitenleistenfilter und gibt nur die dazu passenden Tickets zurück.
 def apply_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     st.sidebar.header("Filter")
     search_value = st.sidebar.text_input("Suche", placeholder="Titel, Absender oder Beschreibung")
@@ -155,6 +163,7 @@ def apply_filters(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return filtered_rows
 
 
+# Zeigt eine Balkengrafik für die Verteilung einer Kategorie an.
 def render_distribution_chart(series: pd.Series, title: str, *, label_formatter=None) -> None:
     st.subheader(title)
 
@@ -181,6 +190,7 @@ def render_distribution_chart(series: pd.Series, title: str, *, label_formatter=
     st.altair_chart(chart, use_container_width=True)
 
 
+# Stellt sicher, dass der aktuelle Wert in den Auswahloptionen enthalten ist, und liefert den passenden Index zurück.
 def build_select_state(base_options: list[str], current_value: str) -> tuple[list[str], int]:
     options = [option for option in base_options if option]
     current_value = str(current_value or "").strip()
@@ -195,6 +205,7 @@ def build_select_state(base_options: list[str], current_value: str) -> tuple[lis
     return options, index
 
 
+# Führt die Pipeline im gewählten Modus aus und fängt dabei die Konsolenausgabe für das UI ab.
 def execute_pipeline(mode: str) -> tuple[dict[str, Any], str]:
     from main import run_pipeline
 
@@ -205,6 +216,7 @@ def execute_pipeline(mode: str) -> tuple[dict[str, Any], str]:
     return result, buffer.getvalue().strip()
 
 
+# Rendert die Bedienelemente zum Starten der Pipeline sowie die Zusammenfassung des letzten Laufs.
 def render_pipeline_controls() -> None:
     st.subheader("Mailbox und Klassifikation")
 
@@ -277,6 +289,7 @@ def render_pipeline_controls() -> None:
             st.code(last_pipeline_log, language="text")
 
 
+# Zeigt gespeicherte Status- und Fehlermeldungen der Übersichtsseite an.
 def render_overview_messages() -> None:
     overview_flash_message = st.session_state.pop("overview_flash_message", None)
     overview_error_message = st.session_state.pop("overview_error_message", None)
@@ -287,6 +300,7 @@ def render_overview_messages() -> None:
         st.error(overview_error_message)
 
 
+# Rendert die Ticketübersicht mit Kennzahlen, Filtern, Diagrammen und Tabellenaktionen.
 def render_overview_page() -> None:
     rows = get_ticket_index()
 
@@ -396,6 +410,7 @@ def render_overview_page() -> None:
         st.rerun()
 
 
+# Rendert die Detailansicht eines ausgewählten Tickets zur Prüfung und manuellen Nachbearbeitung.
 def render_detail_page() -> None:
     rows = get_ticket_index()
     flash_message = st.session_state.pop("ticket_flash_message", None)

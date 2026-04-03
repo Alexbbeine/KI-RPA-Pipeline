@@ -31,6 +31,7 @@ from classification.predict_ticket_classifier import (
 VALID_PIPELINE_MODES = {"all", "fetch", "classify"}
 
 
+# Liest den Ausführungsmodus der Pipeline aus den Kommandozeilenargumenten ein.
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -42,6 +43,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# Wandelt einen ISO-Zeitstempel in ein UTC-Datetime-Objekt um.
 def parse_utc_datetime(value: str) -> datetime:
     if not value:
         raise ValueError("Kein received_utc vorhanden.")
@@ -55,16 +57,18 @@ def parse_utc_datetime(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+# Erzeugt aus Jahr und Release-Nummer den vollständigen Iterationspfad.
 def build_iteration_name(year: int, release_number: int) -> str:
     return f"{ITERATION_ROOT}\\REL{year}_{release_number}"
 
 
+# Ermittelt anhand des Empfangszeitpunkts die passende Zieliteration aus dem Release-Kalender.
 def determine_iteration(received_utc: str) -> str:
     received_dt = parse_utc_datetime(received_utc)
     year = received_dt.year
 
     if year not in RELEASE_PRODUCTIVE_DATES:
-        raise ValueError(f"Kein Release-Kalender fuer das Jahr {year} konfiguriert.")
+        raise ValueError(f"Kein Release-Kalender für das Jahr {year} konfiguriert.")
 
     productive_dates = RELEASE_PRODUCTIVE_DATES[year]
 
@@ -78,13 +82,13 @@ def determine_iteration(received_utc: str) -> str:
     next_year = year + 1
     if next_year not in RELEASE_PRODUCTIVE_DATES:
         raise ValueError(
-            "Ticket faellt nach dem letzten Cutoff des Jahres. "
-            f"Bitte den Release-Kalender fuer {next_year} in config.py ergaenzen."
+            f"Bitte den Release-Kalender für {next_year} in config.py ergänzen."
         )
 
     return build_iteration_name(next_year, 1)
 
 
+# Baut aus E-Mail-Daten und Klassifikation die Ticketfelder für das Zielsystem auf.
 def build_ticket(inbox_record: dict, processed: dict, predicted_ticket: dict) -> dict:
     email = inbox_record.get("email", {})
     received_utc = email.get("received_utc", utc_now_iso())
@@ -105,6 +109,7 @@ def build_ticket(inbox_record: dict, processed: dict, predicted_ticket: dict) ->
     }
 
 
+# Überführt eine gelesene E-Mail in das interne Inbox-JSON-Format.
 def build_inbox_record(email: dict) -> dict:
     return {
         "email": {
@@ -125,6 +130,7 @@ def build_inbox_record(email: dict) -> dict:
     }
 
 
+# Erstellt den vollständigen Ticket-Datensatz mit E-Mail-, Vorverarbeitungs-, Klassifikations- und Metadaten.
 def build_ticket_record(
     inbox_record: dict,
     source_email_path: Path,
@@ -153,7 +159,7 @@ def build_ticket_record(
         },
     }
 
-
+# Erstellt einen standardisierten Fehlerreport mit Zeitstempel, Kontext und Traceback.
 def build_error_report(stage: str, message_id: str, error: Exception, context: dict | None = None) -> dict:
     return {
         "timestamp_utc": utc_now_iso(),
@@ -168,6 +174,7 @@ def build_error_report(stage: str, message_id: str, error: Exception, context: d
     }
 
 
+# Liest neue E-Mails aus Outlook, überspringt bereits bekannte Nachrichten und speichert neue Inbox-Dateien.
 def fetch_and_store_new_emails() -> dict:
     try:
         from outlook_reader import fetch_emails
@@ -240,6 +247,7 @@ def fetch_and_store_new_emails() -> dict:
     return summary
 
 
+# Bereitet Betreff und Inhalt für die Klassifikation auf.
 def get_processed_payload(inbox_record: dict) -> dict:
     email = inbox_record.get("email", {})
     subject = email.get("subject", "")
@@ -257,6 +265,7 @@ def get_processed_payload(inbox_record: dict) -> dict:
     return processed
 
 
+# Klassifiziert alle noch nicht verarbeiteten Inbox-Dateien und speichert daraus Ticket-JSON-Dateien.
 def classify_pending_emails() -> dict:
     ticketed_ids = load_ticketed_ids()
     email_files = list(iter_email_json_files())
@@ -340,6 +349,7 @@ def classify_pending_emails() -> dict:
     return summary
 
 
+# Gibt eine kompakte Zusammenfassung der Fetch- und Klassifikationsstufe in der Konsole aus.
 def print_summary(fetch_summary: dict, classification_summary: dict) -> None:
     print("\n--- Zusammenfassung Fetch-Stufe ---")
     print(f"Ausgelesen:      {fetch_summary['read']}")
@@ -354,6 +364,7 @@ def print_summary(fetch_summary: dict, classification_summary: dict) -> None:
     print(f"Fehler:          {classification_summary['errors']}")
 
 
+# Führt die Pipeline abhängig vom gewählten Modus aus und liefert die Ergebnisübersicht zurück.
 def run_pipeline(mode: str = "all") -> dict:
     if mode not in VALID_PIPELINE_MODES:
         valid_modes = ", ".join(sorted(VALID_PIPELINE_MODES))

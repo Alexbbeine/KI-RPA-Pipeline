@@ -44,37 +44,44 @@ FIXED_OPTION_MAP = {
 }
 
 
+# Stellt sicher, dass das Verzeichnis für Ticketdateien existiert und gibt es zurück.
 def ensure_ticket_directory(ticket_dir: Path | None = None) -> Path:
     directory = Path(ticket_dir or TICKETS_DIR)
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
 
+# Stellt sicher, dass das Zielverzeichnis für die RPA-Inbox existiert und gibt es zurück.
 def ensure_rpa_inbox_directory(target_dir: Path | None = None) -> Path:
     directory = Path(target_dir or RPA_INBOX_DIR)
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
 
+# Liefert alle Ticket-JSON-Dateien in absteigender Reihenfolge zurück.
 def iter_ticket_files(ticket_dir: Path | None = None) -> list[Path]:
     directory = ensure_ticket_directory(ticket_dir)
     return sorted(directory.glob("TICKET-*.json"), reverse=True)
 
 
+# Wandelt einen beliebigen Wert sicher in einen String um.
 def _as_text(value: Any) -> str:
     if value is None:
         return ""
     return str(value)
 
 
+# Normalisiert einen Bereichswert für die interne Verarbeitung.
 def normalize_area_value(value: Any) -> str:
     return str(value or "").strip()
 
 
+# Bereitet einen Bereichswert für die Anzeige in der Oberfläche auf.
 def format_area_display(value: Any) -> str:
     return str(value or "").strip()
 
 
+# Normalisiert einen Ticketfeldwert vor Vergleich oder Speicherung.
 def normalize_ticket_field(field: str, value: Any) -> str:
     text = str(value or "")
     if field == "Description":
@@ -82,6 +89,7 @@ def normalize_ticket_field(field: str, value: Any) -> str:
     return text.strip()
 
 
+# Extrahiert alle numerischen Konfidenzwerte aus dem Klassifikationsergebnis.
 def _extract_confidence_map(classification: dict[str, Any]) -> dict[str, float]:
     confidences: dict[str, float] = {}
 
@@ -93,6 +101,7 @@ def _extract_confidence_map(classification: dict[str, Any]) -> dict[str, float]:
     return confidences
 
 
+# Kürzt einen Text für die Vorschau und entfernt dabei überflüssige Leerzeichen.
 def _truncate(value: str, limit: int = 160) -> str:
     text = " ".join(value.split())
     if len(text) <= limit:
@@ -100,6 +109,7 @@ def _truncate(value: str, limit: int = 160) -> str:
     return text[: limit - 3].rstrip() + "..."
 
 
+# Verdichtet einen Ticketdatensatz zu einer normalisierten Zeile für Übersicht und Filterung.
 def normalize_ticket_record(record: dict[str, Any], source_path: Path) -> dict[str, Any]:
     email = record.get("email", {})
     ticket = record.get("ticket", {})
@@ -144,6 +154,7 @@ def normalize_ticket_record(record: dict[str, Any], source_path: Path) -> dict[s
     }
 
 
+# Lädt alle Ticketdateien und baut daraus den Index für die Übersicht auf.
 def load_ticket_index(ticket_dir: Path | None = None) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
 
@@ -190,6 +201,7 @@ def load_ticket_index(ticket_dir: Path | None = None) -> list[dict[str, Any]]:
     return rows
 
 
+# Sucht einen Ticketdatensatz anhand seiner Ticket-ID und lädt die passende Datei.
 def load_ticket_record_by_id(
     ticket_id: str,
     ticket_dir: Path | None = None,
@@ -202,6 +214,7 @@ def load_ticket_record_by_id(
     return None
 
 
+# Erstellt aus einem Datensatz die editierbaren Ticketfelder mit sinnvollen Fallbacks.
 def build_editable_ticket(record: dict[str, Any]) -> dict[str, str]:
     ticket = record.get("ticket", {})
     email = record.get("email", {})
@@ -219,6 +232,7 @@ def build_editable_ticket(record: dict[str, Any]) -> dict[str, str]:
     return editable
 
 
+# Bereitet die Modellvorhersagen inklusive Konfidenzen und Alternativen für die Detailansicht auf.
 def build_classification_overview(record: dict[str, Any]) -> list[dict[str, str | float]]:
     rows: list[dict[str, str | float]] = []
 
@@ -243,6 +257,7 @@ def build_classification_overview(record: dict[str, Any]) -> list[dict[str, str 
     return rows
 
 
+# Sammelt alle auswählbaren Feldoptionen aus festen Vorgaben und vorhandenen Ticketwerten.
 def collect_options(index_rows: list[dict[str, Any]]) -> dict[str, list[str]]:
     options: dict[str, list[str]] = {key: list(values) for key, values in FIXED_OPTION_MAP.items()}
 
@@ -260,6 +275,7 @@ def collect_options(index_rows: list[dict[str, Any]]) -> dict[str, list[str]]:
     return options
 
 
+# Übernimmt manuelle Änderungen an einem Ticket, protokolliert sie und speichert den Datensatz.
 def update_ticket_record(
     ticket_id: str,
     updated_ticket: dict[str, Any],
@@ -303,6 +319,7 @@ def update_ticket_record(
     return changed_fields
 
 
+# Kennzeichnet ausgewählte Tickets als an RPA übergeben und verschiebt sie in die RPA-Inbox.
 def move_tickets_to_rpa_inbox(
     ticket_ids: list[str],
     *,

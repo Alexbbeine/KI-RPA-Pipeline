@@ -9,6 +9,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, Bert
 from config import CLASSIFIER_MODELS
 
 
+# Lädt abhängig vom Modellpfad den passenden Tokenizer für das Klassifikationsmodell.
 def _load_tokenizer(model_path: Path):
     model_dir_str = str(model_path).lower()
     if 'gbert' in model_dir_str or 'bert-base-german' in model_dir_str:
@@ -17,6 +18,7 @@ def _load_tokenizer(model_path: Path):
 
 
 class TicketClassifier:
+    # Initialisiert den Klassifikator, lädt Modell und Tokenizer und bereitet die Labelzuordnung vor.
     def __init__(self, model_dir: str | Path, device: str | None = None):
         self.model_path = Path(model_dir).resolve()
         if not self.model_path.exists():
@@ -37,7 +39,7 @@ class TicketClassifier:
             int(label_id): label_name
             for label_id, label_name in self.model.config.id2label.items()
         }
-
+    # Führt eine Vorhersage für einen Text aus und liefert Label, Konfidenz, Wahrscheinlichkeiten und Top-3-Ergebnisse zurück.
     def predict(self, text: str, max_length: int = 256) -> dict:
         inputs = self.tokenizer(
             text,
@@ -76,17 +78,20 @@ class TicketClassifier:
         }
 
 
+# Lädt einen Klassifikator gecacht, damit Modelle nicht mehrfach unnötig initialisiert werden.
 @lru_cache(maxsize=None)
 def get_classifier(model_dir: str, device: str | None = None) -> TicketClassifier:
     resolved_path = str(Path(model_dir).resolve())
     return TicketClassifier(resolved_path, device=device)
 
 
+# Führt eine einzelne Vorhersage für einen Text mit dem angegebenen Modell aus.
 def predict(model_dir: str, text: str, max_length: int = 256) -> dict:
     classifier = get_classifier(model_dir)
     return classifier.predict(text=text, max_length=max_length)
 
 
+# Lädt alle in der Konfiguration hinterlegten Klassifikatoren inklusive ihrer Einstellungen.
 def load_classifiers() -> list[dict]:
     loaded_configs = []
 
@@ -111,6 +116,7 @@ def load_classifiers() -> list[dict]:
     return loaded_configs
 
 
+# Lässt den E-Mail-Text von allen geladenen Klassifikatoren bewerten und sammelt die Ergebnisse.
 def classify_email_text(text_for_classification: str, classifiers: list[dict]) -> dict:
     predictions = {}
 

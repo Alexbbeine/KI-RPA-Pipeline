@@ -93,60 +93,64 @@ project-root/
 
 ## Systemübersicht des Prototyps
 ```mermaid
-flowchart LR
-
-  subgraph IN["Eingangsverarbeitung"]
+---
+config:
+  layout: elk
+  theme: redux
+  look: classic
+  themeVariables:
+    fontSize: 30px
+---
+flowchart TB
+ subgraph IN["Eingangsverarbeitung"]
     direction TB
-    outlook["Outlook-Postfach"]
-    reader["outlook_reader.py"]
-    main["main.py"]
-    pre["preprocessing.py"]
+        outlook["Outlook-Postfach<br>Ordner: KI-RPA-Pipeline"]
+        reader["outlook_reader.py<br>Abruf über pywin32 / COM"]
+        main["main.py<br>Pipeline-Steuerung<br>Modi: all | fetch | classify"]
+        pre["preprocessing.py<br>Betreff- und Body-Bereinigung<br>Text für Klassifikation"]
   end
-
-  subgraph KI["KI-Komponente"]
+ subgraph KI["KI-Komponente"]
     direction TB
-    predict["predict_ticket_classifier.py"]
-    models["Lokale BERT-Modelle"]
-    ticketbuild["Ticketaufbau"]
+        predict["predict_ticket_classifier.py<br>Inference-Logik"]
+        models["Lokale BERT-Modelle<br>ticket_type<br>ticket_area<br>ticket_priority<br>ticket_impact"]
+        ticketbuild["Ticketaufbau in main.py<br>+ Iterationsermittlung<br>aus Release-Kalender"]
   end
-
-  subgraph DATA["Dateibasierte Ablage"]
+ subgraph DATA["Dateibasierte Persistenz"]
     direction TB
-    emails["data/emails_inbox"]
-    tickets["data/tickets"]
-    errors["data/errors"]
-    state["data/state"]
+        emails["data/emails_inbox<br>EMAIL-*.json"]
+        tickets["data/tickets<br>TICKET-*.json"]
+        errors["data/errors<br>ERROR-*.json"]
+        state["data/state<br>stored_email_ids<br>ticketed_ids"]
   end
-
-  subgraph UI["Prüfung und Freigabe"]
+ subgraph UI["Human-in-the-Loop und Freigabe"]
     direction TB
-    streamlit["streamlit_ticket_ui.py"]
-    repo["streamlit_ticket_repository.py"]
+        streamlit["streamlit_ticket_ui.py<br>Übersicht, Filter, Detailansicht"]
+        repo["streamlit_ticket_repository.py<br>Laden, Bearbeiten, Historie,<br>Freigabe an RPA-Inbox"]
   end
-
-  subgraph OUT["RPA und Zielsystem"]
+ subgraph OUT["RPA und Zielsystem"]
     direction TB
-    rpa["RPA-Inbox"]
-    bp["Blue Prism"]
-    ados["Azure DevOps Server"]
+        rpa_inbox["RPA-Inbox<br>freigegebene TICKET-JSON"]
+        bp["Blue Prism<br>regelbasierte Ticketanlage"]
+        ados["Azure DevOps Server"]
   end
-
-  outlook --> reader
-  reader --> main
-  main --> emails
-  emails --> pre
-  pre --> predict
-  predict --> models
-  predict --> ticketbuild
-  ticketbuild --> tickets
-  main --> errors
-  main --> state
-
-  streamlit --> repo
-  repo --> tickets
-  repo --> rpa
-  rpa --> bp
-  bp --> ados
+    outlook --> reader
+    reader --> main
+    main -- neue Mail speichern --> emails
+    main --> state & pre
+    emails -- "Inbox-JSON laden" --> main
+    pre --> predict
+    predict --> models
+    models -- Vorhersagen + Konfidenzen --> ticketbuild
+    ticketbuild -- Ticketdatensatz erzeugen --> tickets
+    main -- Fehlerberichte --> errors
+    streamlit -- Pipeline starten --> main
+    streamlit --> repo
+    repo -- "Ticket-JSON laden" --> tickets
+    repo -- manuelle Korrektur<br>+ Änderungshistorie speichern --> tickets
+    repo -- freigegebene Tickets verschieben --> rpa_inbox
+    rpa_inbox --> bp
+    bp --> ados
+    config["config.py<br>Outlook-Ordner, Modellpfade,<br>Verzeichnisse, Release-Kalender"] -.-> reader & main & predict & repo
   ```
 
 ## Voraussetzungen

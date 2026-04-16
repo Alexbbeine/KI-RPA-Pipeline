@@ -332,9 +332,9 @@ def classify_pending_emails() -> dict:
             timing["preprocessing_duration_seconds"] = preprocessing_seconds
             timing["model_inference_duration_seconds"] = inference_seconds
             timing["classification_finished_at_utc"] = utc_now_iso()
-            timing["classification_duration_seconds"] = round(
-                perf_counter() - classification_started, 6
-            )
+            timing["classification_duration_seconds"] = round(perf_counter() - classification_started, 6)
+            timing["rpa_started_at_utc"] = ""
+            timing["rpa_finished_at_utc"] = ""
 
             ticket_record = build_ticket_record(
                 inbox_record=inbox_record,

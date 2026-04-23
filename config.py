@@ -21,7 +21,7 @@ MAX_MESSAGES = 500
 UNREAD_ONLY = True
 MARK_AS_READ = False
 
-# Modellpfade der ML-Modelle
+# Modellpfade der ML-Modelle.
 CLASSIFIER_MODELS = {
     "ticket_type": {
         "model_dir": MODELS_DIR / "ticket-type" / "deepset-gbert",

@@ -21,6 +21,7 @@ MAX_MESSAGES = 500
 UNREAD_ONLY = True
 MARK_AS_READ = False
 
+# Modellpfade der ML-Modelle
 CLASSIFIER_MODELS = {
     "ticket_type": {
         "model_dir": MODELS_DIR / "ticket-type" / "deepset-gbert",
@@ -55,7 +56,7 @@ RELEASE_PRODUCTIVE_DATES = {
     ],
 }
 
-# Feste Auswahllisten fuer die Streamlit-Oberfläche.
+# Feste Auswahllisten für die Streamlit-Oberfläche.
 STREAMLIT_PRIORITY_OPTIONS = ["1", "2", "3", "4"]
 STREAMLIT_IMPACT_OPTIONS = [
     "1 - Kritisch",

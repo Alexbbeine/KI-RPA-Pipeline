@@ -3,5 +3,4 @@ __pycache__/
 *.pyc
 models/
 training/
-*.xlsx
 data/

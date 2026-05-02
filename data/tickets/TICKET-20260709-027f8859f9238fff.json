@@ -1,0 +1,142 @@
+{
+  "email": {
+    "subject": "Reporting Vertrieb - zusätzliche Kennzeichnung im Monatsreport gewünscht",
+    "subject_cleaned": "Reporting Vertrieb - zusätzliche Kennzeichnung im Monatsreport gewünscht",
+    "sender": "markus.weber@hallesche.de",
+    "received_utc": "2026-07-09T10:05:11.487000Z",
+    "body": "Guten Tag,\r\n\r\nfür den Monatsreport im Vertriebsdashboard benötigen wir eine zusätzliche Kennzeichnung für Datensätze, bei denen die Stornoquote über dem vereinbarten Schwellenwert liegt.\r\n\r\nGewünschte Anpassung:\r\n- neues Kennzeichen \"Stornoauffällig\" im Export\r\n- Anzeige zusätzlich in der Tabellenansicht\r\n- Umsetzung vorzugsweise zunächst in RFRG zur fachlichen Prüfung\r\n\r\nEine Beispieldatei habe ich im Projektordner abgelegt:\r\nhttps://intra.hallesche.local/vertrieb/reporting/monatsreport\r\n\r\nMit freundlichen Grüßen\r\nMarkus Weber\r\nVertriebssteuerung",
+    "body_cleaned": "für den Monatsreport im Vertriebsdashboard benötigen wir eine zusätzliche Kennzeichnung für Datensätze, bei denen die Stornoquote über dem vereinbarten Schwellenwert liegt.\n\nGewünschte Anpassung:\n- neues Kennzeichen \"Stornoauffällig\" im Export\n- Anzeige zusätzlich in der Tabellenansicht\n- Umsetzung vorzugsweise zunächst in RFRG zur fachlichen Prüfung\n\nEine Beispieldatei habe ich im Projektordner abgelegt:\nhttps://intra.hallesche.local/vertrieb/reporting/monatsreport",
+    "text_for_classification": "Reporting Vertrieb - zusätzliche Kennzeichnung im Monatsreport gewünscht für den Monatsreport im Vertriebsdashboard benötigen wir eine zusätzliche Kennzeichnung für Datensätze bei denen die Stornoquote über dem vereinbarten Schwellenwert liegt Gewünschte Anpassung - neues Kennzeichen Stornoauffällig im Export - Anzeige zusätzlich in der Tabellenansicht - Umsetzung vorzugsweise zunächst in RFRG zur fachlichen Prüfung Eine Beispieldatei habe ich im Projektordner abgelegt https //intra hallesche local/vertrieb/reporting/monatsreport"
+  },
+  "ticket": {
+    "Title": "Reporting Vertrieb - zusätzliche Kennzeichnung im Monatsreport gewünscht",
+    "Area": "SEU\\ALH\\Analytics",
+    "Iteration": "SEU\\REL2026_3",
+    "Description": "für den Monatsreport im Vertriebsdashboard benötigen wir eine zusätzliche Kennzeichnung für Datensätze, bei denen die Stornoquote über dem vereinbarten Schwellenwert liegt.\n\nGewünschte Anpassung:\n- neues Kennzeichen \"Stornoauffällig\" im Export\n- Anzeige zusätzlich in der Tabellenansicht\n- Umsetzung vorzugsweise zunächst in RFRG zur fachlichen Prüfung\n\nEine Beispieldatei habe ich im Projektordner abgelegt:\nhttps://intra.hallesche.local/vertrieb/reporting/monatsreport",
+    "Ticket-Type": "ChangeRequest",
+    "Environment": "RFRG",
+    "Prio": "3",
+    "Impact": "3 - Mittel"
+  },
+  "classification": {
+    "ticket_type": {
+      "label": "ChangeRequest",
+      "softmax_confidence": 0.973,
+      "top_3": [
+        {
+          "label": "ChangeRequest",
+          "score": 0.973
+        },
+        {
+          "label": "Problem",
+          "score": 0.027
+        }
+      ],
+      "probabilities": {
+        "ChangeRequest": 0.973,
+        "Problem": 0.027
+      },
+      "model_dir": "C:\\KI-RPA-Pipeline\\models\\ticket-type\\deepset-gbert"
+    },
+    "ticket_area": {
+      "label": "SEU\\ALH\\Analytics",
+      "softmax_confidence": 0.742,
+      "top_3": [
+        {
+          "label": "SEU\\ALH\\Analytics",
+          "score": 0.742
+        },
+        {
+          "label": "SEU\\ALH\\Vertrieb",
+          "score": 0.173
+        },
+        {
+          "label": "SEU\\ALH\\Sach",
+          "score": 0.028
+        }
+      ],
+      "probabilities": {
+        "SEU\\ALH\\Analytics": 0.742,
+        "SEU\\ALH\\Vertrieb": 0.173,
+        "SEU\\ALH\\Sach": 0.028,
+        "SEU\\ALH\\Zentrale Systeme": 0.022,
+        "SEU\\ALH\\Kranken": 0.014,
+        "SEU\\ALH\\Architektur": 0.012,
+        "SEU\\ALH\\Leben": 0.009
+      },
+      "model_dir": "C:\\KI-RPA-Pipeline\\models\\ticket-area\\hyperparameter\\dbmz-german"
+    },
+    "ticket_impact": {
+      "label": "3 - Mittel",
+      "softmax_confidence": 0.684,
+      "top_3": [
+        {
+          "label": "3 - Mittel",
+          "score": 0.684
+        },
+        {
+          "label": "4 - Niedrig",
+          "score": 0.202
+        },
+        {
+          "label": "2 - Hoch",
+          "score": 0.091
+        }
+      ],
+      "probabilities": {
+        "3 - Mittel": 0.684,
+        "4 - Niedrig": 0.202,
+        "2 - Hoch": 0.091,
+        "1 - Kritisch": 0.023
+      },
+      "model_dir": "C:\\KI-RPA-Pipeline\\models\\ticket-impact\\dbmz-german"
+    },
+    "ticket_priority": {
+      "label": "3",
+      "softmax_confidence": 0.711,
+      "top_3": [
+        {
+          "label": "3",
+          "score": 0.711
+        },
+        {
+          "label": "4",
+          "score": 0.167
+        },
+        {
+          "label": "2",
+          "score": 0.099
+        }
+      ],
+      "probabilities": {
+        "3": 0.711,
+        "4": 0.167,
+        "2": 0.099,
+        "1": 0.023
+      },
+      "model_dir": "C:\\KI-RPA-Pipeline\\models\\ticket-prio\\deepset-gbert"
+    }
+  },
+  "preprocessing": {
+    "salutation_removed": true,
+    "closing_removed": true
+  },
+  "timing": {
+    "fetch_started_at_utc": "2026-07-09T10:06:21.101000Z",
+    "fetch_finished_at_utc": "2026-07-09T10:06:21.149000Z",
+    "fetch_duration_seconds": 0.048,
+    "classification_started_at_utc": "2026-07-09T10:06:36.210000Z",
+    "preprocessing_duration_seconds": 0.00182,
+    "model_inference_duration_seconds": 21.79118,
+    "classification_finished_at_utc": "2026-07-09T10:06:58.003000Z",
+    "classification_duration_seconds": 21.793,
+    "rpa_started_at_utc": "",
+    "rpa_finished_at_utc": ""
+  },
+  "meta": {
+    "source": "outlook_desktop",
+    "message_id": "<initialdata-2-4df06f25267462aa@hallesche.de>",
+    "source_email_file": "C:\\KI-RPA-Pipeline\\data\\emails_inbox\\EMAIL-20260709-027f8859f9238fff.json",
+    "ticket_created_at_utc": "2026-07-09T10:06:58.086000Z"
+  }
+}

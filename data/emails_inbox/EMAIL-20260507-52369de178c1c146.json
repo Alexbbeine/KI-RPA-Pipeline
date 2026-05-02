@@ -1,0 +1,22 @@
+{
+  "email": {
+    "subject": "ADOS - Anmeldung im Produktivsystem schlägt mit HTTP 500 fehl",
+    "sender": "sandra.mueller@hallesche.de",
+    "received_utc": "2026-05-07T07:18:42.113000Z",
+    "body": "Hallo zusammen,\r\n\r\nseit dem heutigen Morgen können mehrere Kollegen keine neuen Work Items mehr in ADOS öffnen. Nach der Anmeldung erscheint direkt eine HTTP-500-Fehlermeldung. Betroffen sind nach aktuellem Stand mindestens 14 Nutzer im Produktivsystem.\r\n\r\nBeobachtungen:\r\n- Fehler tritt im Browser und in Visual Studio auf\r\n- bestehende Tickets lassen sich teilweise noch über Direktlink öffnen\r\n- betroffen ist ausschließlich PROD\r\n\r\nKönnt ihr bitte kurzfristig prüfen, ob der Fehler mit dem nächtlichen Deployment zusammenhängt?\r\n\r\nViele Grüße\r\nSandra Müller\r\nFachbereich Anwendungsbetrieb"
+  },
+  "meta": {
+    "source": "outlook_desktop",
+    "message_id": "<initialdata-1-aafce2ffb545da33@hallesche.de>",
+    "stored_at_utc": "2026-05-07T07:20:01.137000Z"
+  },
+  "status": {
+    "stored_in_inbox": true,
+    "ticket_created": false
+  },
+  "timing": {
+    "fetch_started_at_utc": "2026-05-07T07:19:59.101000Z",
+    "fetch_finished_at_utc": "2026-05-07T07:19:59.137000Z",
+    "fetch_duration_seconds": 0.036
+  }
+}

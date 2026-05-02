@@ -1,0 +1,142 @@
+{
+  "email": {
+    "subject": "Kranken - Batch-Import bricht bei Leistungsfällen mit Validierungsfehler ab",
+    "subject_cleaned": "Kranken - Batch-Import bricht bei Leistungsfällen mit Validierungsfehler ab",
+    "sender": "daniela.schmitt@hallesche.de",
+    "received_utc": "2026-11-03T06:42:55.962000Z",
+    "body": "Hallo Team,\r\n\r\nder nächtliche Batch-Import für Leistungsfälle in der Kranken-Sparte ist heute um 02:14 Uhr abgebrochen. Im Log wird für mehrere Datensätze ein Validierungsfehler auf dem Feld Leistungsart ausgegeben.\r\n\r\nAuswirkungen:\r\n- 326 Fälle wurden nicht übernommen\r\n- manuelle Nachbearbeitung ist aktuell nur teilweise möglich\r\n- Fachbereich kann die offenen Vorgänge nicht vollständig freigeben\r\n\r\nBitte prüfen, ob die Anpassung aus dem letzten Release damit zusammenhängt. Ein Logauszug liegt im gemeinsamen Ordner unter \\srv-files\\kranken\\imports\\2026-11-03.\r\n\r\nBeste Grüße\r\nDaniela Schmitt\r\nLeistungsmanagement Kranken",
+    "body_cleaned": "der nächtliche Batch-Import für Leistungsfälle in der Kranken-Sparte ist heute um 02:14 Uhr abgebrochen. Im Log wird für mehrere Datensätze ein Validierungsfehler auf dem Feld Leistungsart ausgegeben.\n\nAuswirkungen:\n- 326 Fälle wurden nicht übernommen\n- manuelle Nachbearbeitung ist aktuell nur teilweise möglich\n- Fachbereich kann die offenen Vorgänge nicht vollständig freigeben\n\nBitte prüfen, ob die Anpassung aus dem letzten Release damit zusammenhängt. Ein Logauszug liegt im gemeinsamen Ordner unter \\srv-files\\kranken\\imports\\2026-11-03.",
+    "text_for_classification": "Kranken - Batch-Import bricht bei Leistungsfällen mit Validierungsfehler ab der nächtliche Batch-Import für Leistungsfälle in der Kranken-Sparte ist heute um 02 14 Uhr abgebrochen Im Log wird für mehrere Datensätze ein Validierungsfehler auf dem Feld Leistungsart ausgegeben Auswirkungen - 326 Fälle wurden nicht übernommen - manuelle Nachbearbeitung ist aktuell nur teilweise möglich - Fachbereich kann die offenen Vorgänge nicht vollständig freigeben Bitte prüfen ob die Anpassung aus dem letzten Release damit zusammenhängt Ein Logauszug liegt im gemeinsamen Ordner unter srv-files kranken imports 2026-11-03"
+  },
+  "ticket": {
+    "Title": "Kranken - Batch-Import bricht bei Leistungsfällen mit Validierungsfehler ab",
+    "Area": "SEU\\ALH\\Kranken",
+    "Iteration": "SEU\\REL2026_4",
+    "Description": "der nächtliche Batch-Import für Leistungsfälle in der Kranken-Sparte ist heute um 02:14 Uhr abgebrochen. Im Log wird für mehrere Datensätze ein Validierungsfehler auf dem Feld Leistungsart ausgegeben.\n\nAuswirkungen:\n- 326 Fälle wurden nicht übernommen\n- manuelle Nachbearbeitung ist aktuell nur teilweise möglich\n- Fachbereich kann die offenen Vorgänge nicht vollständig freigeben\n\nBitte prüfen, ob die Anpassung aus dem letzten Release damit zusammenhängt. Ein Logauszug liegt im gemeinsamen Ordner unter \\srv-files\\kranken\\imports\\2026-11-03.",
+    "Ticket-Type": "Problem",
+    "Environment": "PROD",
+    "Prio": "2",
+    "Impact": "2 - Hoch"
+  },
+  "classification": {
+    "ticket_type": {
+      "label": "Problem",
+      "softmax_confidence": 0.982,
+      "top_3": [
+        {
+          "label": "Problem",
+          "score": 0.982
+        },
+        {
+          "label": "ChangeRequest",
+          "score": 0.018
+        }
+      ],
+      "probabilities": {
+        "Problem": 0.982,
+        "ChangeRequest": 0.018
+      },
+      "model_dir": "C:\\KI-RPA-Pipeline\\models\\ticket-type\\deepset-gbert"
+    },
+    "ticket_area": {
+      "label": "SEU\\ALH\\Kranken",
+      "softmax_confidence": 0.817,
+      "top_3": [
+        {
+          "label": "SEU\\ALH\\Kranken",
+          "score": 0.817
+        },
+        {
+          "label": "SEU\\ALH\\Leben",
+          "score": 0.061
+        },
+        {
+          "label": "SEU\\ALH\\Sach",
+          "score": 0.048
+        }
+      ],
+      "probabilities": {
+        "SEU\\ALH\\Kranken": 0.817,
+        "SEU\\ALH\\Leben": 0.061,
+        "SEU\\ALH\\Sach": 0.048,
+        "SEU\\ALH\\Zentrale Systeme": 0.031,
+        "SEU\\ALH\\Analytics": 0.019,
+        "SEU\\ALH\\Architektur": 0.014,
+        "SEU\\ALH\\Vertrieb": 0.01
+      },
+      "model_dir": "C:\\KI-RPA-Pipeline\\models\\ticket-area\\hyperparameter\\dbmz-german"
+    },
+    "ticket_impact": {
+      "label": "2 - Hoch",
+      "softmax_confidence": 0.792,
+      "top_3": [
+        {
+          "label": "2 - Hoch",
+          "score": 0.792
+        },
+        {
+          "label": "1 - Kritisch",
+          "score": 0.127
+        },
+        {
+          "label": "3 - Mittel",
+          "score": 0.066
+        }
+      ],
+      "probabilities": {
+        "2 - Hoch": 0.792,
+        "1 - Kritisch": 0.127,
+        "3 - Mittel": 0.066,
+        "4 - Niedrig": 0.015
+      },
+      "model_dir": "C:\\KI-RPA-Pipeline\\models\\ticket-impact\\dbmz-german"
+    },
+    "ticket_priority": {
+      "label": "2",
+      "softmax_confidence": 0.768,
+      "top_3": [
+        {
+          "label": "2",
+          "score": 0.768
+        },
+        {
+          "label": "1",
+          "score": 0.141
+        },
+        {
+          "label": "3",
+          "score": 0.075
+        }
+      ],
+      "probabilities": {
+        "2": 0.768,
+        "1": 0.141,
+        "3": 0.075,
+        "4": 0.016
+      },
+      "model_dir": "C:\\KI-RPA-Pipeline\\models\\ticket-prio\\deepset-gbert"
+    }
+  },
+  "preprocessing": {
+    "salutation_removed": true,
+    "closing_removed": true
+  },
+  "timing": {
+    "fetch_started_at_utc": "2026-11-03T06:43:40.221000Z",
+    "fetch_finished_at_utc": "2026-11-03T06:43:40.257000Z",
+    "fetch_duration_seconds": 0.036,
+    "classification_started_at_utc": "2026-11-03T06:43:52.341000Z",
+    "preprocessing_duration_seconds": 0.00213,
+    "model_inference_duration_seconds": 24.56887,
+    "classification_finished_at_utc": "2026-11-03T06:44:16.912000Z",
+    "classification_duration_seconds": 24.571,
+    "rpa_started_at_utc": "",
+    "rpa_finished_at_utc": ""
+  },
+  "meta": {
+    "source": "outlook_desktop",
+    "message_id": "<initialdata-3-1088f5555f2541d6@hallesche.de>",
+    "source_email_file": "C:\\KI-RPA-Pipeline\\data\\emails_inbox\\EMAIL-20261103-b7b78499ed8eadfb.json",
+    "ticket_created_at_utc": "2026-11-03T06:44:16.995000Z"
+  }
+}

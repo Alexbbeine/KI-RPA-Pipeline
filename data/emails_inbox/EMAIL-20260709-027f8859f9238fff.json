@@ -1,0 +1,22 @@
+{
+  "email": {
+    "subject": "Reporting Vertrieb - zusätzliche Kennzeichnung im Monatsreport gewünscht",
+    "sender": "markus.weber@hallesche.de",
+    "received_utc": "2026-07-09T10:05:11.487000Z",
+    "body": "Guten Tag,\r\n\r\nfür den Monatsreport im Vertriebsdashboard benötigen wir eine zusätzliche Kennzeichnung für Datensätze, bei denen die Stornoquote über dem vereinbarten Schwellenwert liegt.\r\n\r\nGewünschte Anpassung:\r\n- neues Kennzeichen \"Stornoauffällig\" im Export\r\n- Anzeige zusätzlich in der Tabellenansicht\r\n- Umsetzung vorzugsweise zunächst in RFRG zur fachlichen Prüfung\r\n\r\nEine Beispieldatei habe ich im Projektordner abgelegt:\r\nhttps://intra.hallesche.local/vertrieb/reporting/monatsreport\r\n\r\nMit freundlichen Grüßen\r\nMarkus Weber\r\nVertriebssteuerung"
+  },
+  "meta": {
+    "source": "outlook_desktop",
+    "message_id": "<initialdata-2-4df06f25267462aa@hallesche.de>",
+    "stored_at_utc": "2026-07-09T10:06:23.149000Z"
+  },
+  "status": {
+    "stored_in_inbox": true,
+    "ticket_created": false
+  },
+  "timing": {
+    "fetch_started_at_utc": "2026-07-09T10:06:21.101000Z",
+    "fetch_finished_at_utc": "2026-07-09T10:06:21.149000Z",
+    "fetch_duration_seconds": 0.048
+  }
+}

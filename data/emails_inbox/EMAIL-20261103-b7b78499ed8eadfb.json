@@ -1,0 +1,22 @@
+{
+  "email": {
+    "subject": "Kranken - Batch-Import bricht bei Leistungsfällen mit Validierungsfehler ab",
+    "sender": "daniela.schmitt@hallesche.de",
+    "received_utc": "2026-11-03T06:42:55.962000Z",
+    "body": "Hallo Team,\r\n\r\nder nächtliche Batch-Import für Leistungsfälle in der Kranken-Sparte ist heute um 02:14 Uhr abgebrochen. Im Log wird für mehrere Datensätze ein Validierungsfehler auf dem Feld Leistungsart ausgegeben.\r\n\r\nAuswirkungen:\r\n- 326 Fälle wurden nicht übernommen\r\n- manuelle Nachbearbeitung ist aktuell nur teilweise möglich\r\n- Fachbereich kann die offenen Vorgänge nicht vollständig freigeben\r\n\r\nBitte prüfen, ob die Anpassung aus dem letzten Release damit zusammenhängt. Ein Logauszug liegt im gemeinsamen Ordner unter \\srv-files\\kranken\\imports\\2026-11-03.\r\n\r\nBeste Grüße\r\nDaniela Schmitt\r\nLeistungsmanagement Kranken"
+  },
+  "meta": {
+    "source": "outlook_desktop",
+    "message_id": "<initialdata-3-1088f5555f2541d6@hallesche.de>",
+    "stored_at_utc": "2026-11-03T06:43:42.257000Z"
+  },
+  "status": {
+    "stored_in_inbox": true,
+    "ticket_created": false
+  },
+  "timing": {
+    "fetch_started_at_utc": "2026-11-03T06:43:40.221000Z",
+    "fetch_finished_at_utc": "2026-11-03T06:43:40.257000Z",
+    "fetch_duration_seconds": 0.036
+  }
+}
